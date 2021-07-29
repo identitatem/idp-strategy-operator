@@ -1,0 +1,24 @@
+# permissions for end users to edit strategies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strategy-editor-role
+rules:
+- apiGroups:
+  - identitatem.io
+  resources:
+  - strategies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - identitatem.io
+  resources:
+  - strategies/status
+  verbs:
+  - get

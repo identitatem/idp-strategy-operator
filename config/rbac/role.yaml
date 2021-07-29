@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - identitatem.io
+  resources:
+  - strategies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - identitatem.io
+  resources:
+  - strategies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - identitatem.io
+  resources:
+  - strategies/status
+  verbs:
+  - get
+  - patch
+  - update
