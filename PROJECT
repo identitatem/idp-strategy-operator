@@ -1,0 +1,16 @@
+domain: identitatem.io
+layout:
+- go.kubebuilder.io/v3
+projectName: idp-strategy-operator
+repo: github.com/identitatem/idp-strategy-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: identitatem.io
+  group: identitatem.io
+  kind: Strategy
+  path: github.com/identitatem/idp-strategy-operator/api/v1
+  version: v1
+version: "3"
