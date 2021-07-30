@@ -1,7 +1,8 @@
-apiVersion: identitatem.io/v1
+apiVersion: identitatem.io/v1alpha1
 kind: Strategy
 metadata:
   name: strategy-sample
+  namespace: default
 spec:
   # Add fields here
   foo: bar
