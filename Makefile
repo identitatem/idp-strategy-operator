@@ -123,3 +123,26 @@ functional-test-full-clean:
 functional-test:
 	@echo running functional tests
 	ginkgo -tags functional -v --slowSpecThreshold=30 test/functional -- -v=5
+
+# See https://book.kubebuilder.io/reference/envtest.html.
+#    kubebuilder 2.3.x contained kubebuilder and etc in a tgz
+#    kubebuilder 3.x only had the kubebuilder, not etcd, so we had to download a different way
+# After running this make target, you will need to either:
+# - export KUBEBUILDER_ASSETS=$HOME/kubebuilder/bin
+# OR
+# - sudo mv $HOME/kubebuilder /usr/local
+#
+# This will allow you to run `make test`
+envtest-tools:
+ifeq (, $(shell which etcd))
+		@{ \
+			set -ex ;\
+			ENVTEST_TMP_DIR=$$(mktemp -d) ;\
+			cd $$ENVTEST_TMP_DIR ;\
+			K8S_VERSION=1.19.2 ;\
+			curl -sSLo envtest-bins.tar.gz https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-$$K8S_VERSION-$$(go env GOOS)-$$(go env GOARCH).tar.gz ;\
+			tar xf envtest-bins.tar.gz ;\
+			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
+			rm -rf $$ENVTEST_TMP_DIR ;\
+		}
+endif
