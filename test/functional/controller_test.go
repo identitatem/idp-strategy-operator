@@ -73,8 +73,9 @@ var _ = Describe("Strategy", func() {
 				logf.Log.Info("Error while reading strategy", "Error", err)
 				return err
 			}
-			if len(strategy.Spec.Foo) == 0 {
-				logf.Log.Info("Strategy Foo is still empty")
+
+			if len(strategy.Spec.StrategyType) == 0 {
+				logf.Log.Info("Strategy StrategyType is still empty")
 				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
 			}
 			return nil
