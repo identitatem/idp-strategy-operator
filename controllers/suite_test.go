@@ -81,6 +81,10 @@ var _ = Describe("Process Strategy: ", func() {
 					Name:      "mystrategy",
 					Namespace: "default",
 				},
+				Spec: identitatemv1alpha1.StrategySpec{
+					StrategyType:    identitatemv1alpha1.GrcStrategyType,
+					RemediationType: identitatemv1alpha1.InformRemediationActionType,
+				},
 			}
 			_, err := identitatemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
@@ -104,9 +108,9 @@ var _ = Describe("Process Strategy: ", func() {
 				logf.Log.Info("Error while reading authrealm", "Error", err)
 				return err
 			}
-			if len(authRealm.Spec.Foo) == 0 {
-				logf.Log.Info("AuthRealm Foo is still empty")
-				return fmt.Errorf("AuthRealm %s/%s not processed", authRealm.Namespace, authRealm.Name)
+			if len(authRealm.Spec.StrategyType) == 0 {
+				logf.Log.Info("StrategyType is still empty")
+				return fmt.Errorf("Strategy %s/%s not processed", authRealm.Namespace, authRealm.Name)
 			}
 			return nil
 		}, 30, 1).Should(BeNil())
