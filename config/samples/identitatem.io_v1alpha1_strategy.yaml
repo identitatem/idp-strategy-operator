@@ -6,4 +6,4 @@ metadata:
 spec:
   # Add fields here
   type: grc
-  remediationAction: inform
+  remediationAction: Inform

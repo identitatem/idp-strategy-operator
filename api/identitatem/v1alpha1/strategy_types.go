@@ -3,6 +3,7 @@
 package v1alpha1
 
 import (
+	//policyv1 "github.com/open-cluster-management/governance-policy-propagator/pkg/apis/policy/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -17,19 +18,12 @@ type StrategySpec struct {
 
 	// Authentication Realm
 	// +required
-	AuthRealmRef *corev1.LocalObjectReference `json:"authRealmRef,omitempty"`
+	AuthRealm *corev1.LocalObjectReference `json:"authRealm,omitempty"`
 
 	// Strategy to use for applying the AuthRealm to the managed clusters
-	// +kubebuilder:validation:Enum=backplane;grc;hive
+	// +kubebuilder:validation:Enum=backplane;grc
 	// +required
 	StrategyType StrategyType `json:"type"`
-
-	//default to enforce but allow user to change, OPTIONAL - only used when type is grc
-	// +kubebuilder:validation:Enum=enforce;inform
-	RemediationType RemediationActionType `json:"remediationAction,omitempty"`
-
-	// the list of TargetClusters for this strategy
-	TargetClusters []TargetCluster `json:"targetClusters,omitempty"`
 }
 
 type StrategyType string
@@ -37,32 +31,7 @@ type StrategyType string
 const (
 	BackplaneStrategyType StrategyType = "backplane"
 	GrcStrategyType       StrategyType = "grc"
-	HiveStrategyType      StrategyType = "hive"
 )
-
-type RemediationActionType string
-
-const (
-	EnforceRemediationActionType RemediationActionType = "enforce"
-	InformRemediationActionType  RemediationActionType = "inform"
-)
-
-// TargetCluster defined the cluster to apply the strategy to
-type TargetCluster struct {
-	// Name of the managed cluster
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// managed cluster ID for OAuth
-	ClientID string `json:"clientID,omitempty"`
-
-	// managed cluster secret for OAuth
-	ClientSecretRef *corev1.LocalObjectReference `json:"clientSecret,omitempty"`
-
-	// in case the user brings their own TLS cert for dex or rhsso
-	CaCertificateRef *corev1.LocalObjectReference `json:"ca,omitempty"`
-	Issuer           string                       `json:"issuer,omitempty"`
-}
 
 // StrategyStatus defines the observed state of Strategy
 type StrategyStatus struct {

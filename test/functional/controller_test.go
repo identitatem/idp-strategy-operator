@@ -64,8 +64,7 @@ var _ = Describe("Strategy", func() {
 					Namespace: "default",
 				},
 				Spec: identitatemv1alpha1.StrategySpec{
-					StrategyType:    identitatemv1alpha1.GrcStrategyType,
-					RemediationType: identitatemv1alpha1.InformRemediationActionType,
+					StrategyType: identitatemv1alpha1.GrcStrategyType,
 				},
 			}
 			_, err := identitattemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})

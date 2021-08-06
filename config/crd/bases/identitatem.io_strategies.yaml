@@ -36,7 +36,7 @@ spec:
           spec:
             description: StrategySpec defines the desired state of Strategy
             properties:
-              authRealmRef:
+              authRealm:
                 description: Authentication Realm
                 properties:
                   name:
@@ -44,55 +44,12 @@ spec:
                       TODO: Add other useful fields. apiVersion, kind, uid?'
                     type: string
                 type: object
-              remediationAction:
-                description: default to enforce but allow user to change, OPTIONAL
-                  - only used when type is grc
-                enum:
-                - enforce
-                - inform
-                type: string
-              targetClusters:
-                description: the list of TargetClusters for this strategy
-                items:
-                  description: TargetCluster defined the cluster to apply the strategy
-                    to
-                  properties:
-                    ca:
-                      description: in case the user brings their own TLS cert for
-                        dex or rhsso
-                      properties:
-                        name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
-                          type: string
-                      type: object
-                    clientID:
-                      description: managed cluster ID for OAuth
-                      type: string
-                    clientSecret:
-                      description: managed cluster secret for OAuth
-                      properties:
-                        name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
-                          type: string
-                      type: object
-                    issuer:
-                      type: string
-                    name:
-                      description: Name of the managed cluster
-                      type: string
-                  required:
-                  - name
-                  type: object
-                type: array
               type:
                 description: Strategy to use for applying the AuthRealm to the managed
                   clusters
                 enum:
                 - backplane
                 - grc
-                - hive
                 type: string
             required:
             - type
