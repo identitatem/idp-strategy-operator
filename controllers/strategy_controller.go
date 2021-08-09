@@ -24,9 +24,9 @@ type StrategyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=identitatem.io,resources=strategies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=identitatem.io,resources=strategies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=identitatem.io,resources=strategies/finalizers,verbs=update
+//+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -59,7 +59,15 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	instance.Spec.Foo = "test"
+	// Check StrategyType
+	if (instance.Spec.StrategyType != identitatemv1alpha1.GrcStrategyType) &&
+		(instance.Spec.StrategyType != identitatemv1alpha1.BackplaneStrategyType) {
+
+		return reconcile.Result{}, nil
+	}
+
+	r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
+
 	if err := r.Client.Update(context.TODO(), instance); err != nil {
 		return ctrl.Result{}, err
 	}

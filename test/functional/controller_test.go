@@ -63,18 +63,22 @@ var _ = Describe("Strategy", func() {
 					Name:      "mystrategy",
 					Namespace: "default",
 				},
+				Spec: identitatemv1alpha1.StrategySpec{
+					StrategyType: identitatemv1alpha1.GrcStrategyType,
+				},
 			}
-			_, err := identitattemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
-			strategy, err := identitattemClientSet.IdentitatemV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading strategy", "Error", err)
 				return err
 			}
-			if len(strategy.Spec.Foo) == 0 {
-				logf.Log.Info("Strategy Foo is still empty")
+
+			if len(strategy.Spec.StrategyType) == 0 {
+				logf.Log.Info("Strategy StrategyType is still empty")
 				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
 			}
 			return nil

@@ -81,8 +81,11 @@ var _ = Describe("Process Strategy: ", func() {
 					Name:      "mystrategy",
 					Namespace: "default",
 				},
+				Spec: identitatemv1alpha1.StrategySpec{
+					StrategyType: identitatemv1alpha1.GrcStrategyType,
+				},
 			}
-			_, err := identitatemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
@@ -99,14 +102,14 @@ var _ = Describe("Process Strategy: ", func() {
 			if err != nil {
 				return err
 			}
-			authRealm, err := identitatemClientSet.IdentitatemV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			authRealm, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading authrealm", "Error", err)
 				return err
 			}
-			if len(authRealm.Spec.Foo) == 0 {
-				logf.Log.Info("AuthRealm Foo is still empty")
-				return fmt.Errorf("AuthRealm %s/%s not processed", authRealm.Namespace, authRealm.Name)
+			if len(authRealm.Spec.StrategyType) == 0 {
+				logf.Log.Info("StrategyType is still empty")
+				return fmt.Errorf("Strategy %s/%s not processed", authRealm.Namespace, authRealm.Name)
 			}
 			return nil
 		}, 30, 1).Should(BeNil())
