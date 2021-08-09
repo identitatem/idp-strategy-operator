@@ -16,14 +16,16 @@ type StrategySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make generate-clients" to regenerate code after modifying this file
 
-	// Authentication Realm
-	// +required
-	AuthRealm *corev1.LocalObjectReference `json:"authRealm,omitempty"`
-
 	// Strategy to use for applying the AuthRealm to the managed clusters
 	// +kubebuilder:validation:Enum=backplane;grc
 	// +required
 	StrategyType StrategyType `json:"type"`
+
+	// Reference to a Placement CR created by the Strategy operator
+	// reference to a Placement CR created by the strategy operator that is a copy of the placement (Placement)
+	//   referenced in the ownerReference (AuthRealm) object's placement property,
+	//   patched with additional predicates to filter managed clusters by supported strategy type.
+	PlacementRef corev1.LocalObjectReference `json:"placementRef,omitempty"`
 }
 
 type StrategyType string

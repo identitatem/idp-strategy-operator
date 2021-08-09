@@ -36,8 +36,12 @@ spec:
           spec:
             description: StrategySpec defines the desired state of Strategy
             properties:
-              authRealm:
-                description: Authentication Realm
+              placementRef:
+                description: Reference to a Placement CR created by the Strategy operator
+                  reference to a Placement CR created by the strategy operator that
+                  is a copy of the placement (Placement)   referenced in the ownerReference
+                  (AuthRealm) object's placement property,   patched with additional
+                  predicates to filter managed clusters by supported strategy type.
                 properties:
                   name:
                     description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
