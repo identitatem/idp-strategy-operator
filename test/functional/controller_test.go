@@ -57,7 +57,35 @@ var _ = Describe("Strategy", func() {
 	})
 
 	It("process a Strategy", func() {
-		By("Create a Strategy", func() {
+		By("Create a Backplane Strategy", func() {
+			strategy := identitatemv1alpha1.Strategy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mystrategy",
+					Namespace: "default",
+				},
+				Spec: identitatemv1alpha1.StrategySpec{
+					StrategyType: identitatemv1alpha1.BackplaneStrategyType,
+				},
+			}
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+		})
+		Eventually(func() error {
+			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			if err != nil {
+				logf.Log.Info("Error while reading strategy", "Error", err)
+				return err
+			}
+
+			if len(strategy.Spec.StrategyType) == 0 || strategy.Spec.StrategyType !== identitatemv1alpha1.BackplaneStrategyType,{
+				logf.Log.Info("Strategy StrategyType is still wrong!")
+				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
+			}
+			return nil
+		}, 30, 1).Should(BeNil())
+
+
+		By("Create a GRC Strategy", func() {
 			strategy := identitatemv1alpha1.Strategy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "mystrategy",
@@ -77,7 +105,7 @@ var _ = Describe("Strategy", func() {
 				return err
 			}
 
-			if len(strategy.Spec.StrategyType) == 0 {
+			if len(strategy.Spec.StrategyType) == 0 || strategy.Spec.StrategyType !== identitatemv1alpha1.GrcStrategyType,{
 				logf.Log.Info("Strategy StrategyType is still empty")
 				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
 			}
