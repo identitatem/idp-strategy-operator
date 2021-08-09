@@ -40,8 +40,6 @@ var _ = Describe("Process Strategy: ", func() {
 	It("create a Strategy CR", func() {
 		cr := sampleStrategy.DeepCopy()
 		createdCR, err := clientSet.IdentitatemV1alpha1().Strategies(cr.Namespace).Create(context.TODO(), cr, metav1.CreateOptions{})
-		//cr.Spec.RemediationType = identitatemv1alpha1.InformRemediationActionType
-		//cr.Spec.StrategyType = identitatemv1alpha1.GrcStrategyType
 		Expect(err).To(BeNil())
 		cu, err := dynamicClient.Resource(identitatemv1alpha1.SchemeGroupVersion.WithResource("strategies")).
 			Namespace(cr.Namespace).

@@ -59,7 +59,14 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	//instance.Spec.StrategyType = identitatemv1alpha1.GrcStrategyType
+	// Check StrategyType
+	if (instance.Spec.StrategyType != identitatemv1alpha1.GrcStrategyType) &&
+		(instance.Spec.StrategyType != identitatemv1alpha1.BackplaneStrategyType) {
+
+		return reconcile.Result{}, nil
+	}
+
+	r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
 
 	if err := r.Client.Update(context.TODO(), instance); err != nil {
 		return ctrl.Result{}, err
