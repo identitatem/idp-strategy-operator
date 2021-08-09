@@ -7,7 +7,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - identitatem.io
+  - identityconfig.identitatem.io
   resources:
   - strategies
   verbs:
@@ -19,13 +19,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - identitatem.io
+  - identityconfig.identitatem.io
   resources:
   - strategies/finalizers
   verbs:
   - update
 - apiGroups:
-  - identitatem.io
+  - identityconfig.identitatem.io
   resources:
   - strategies/status
   verbs:

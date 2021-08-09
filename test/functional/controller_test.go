@@ -67,11 +67,11 @@ var _ = Describe("Strategy", func() {
 					StrategyType: identitatemv1alpha1.GrcStrategyType,
 				},
 			}
-			_, err := identitattemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
-			strategy, err := identitattemClientSet.IdentitatemV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading strategy", "Error", err)
 				return err

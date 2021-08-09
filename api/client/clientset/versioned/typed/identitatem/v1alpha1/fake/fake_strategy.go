@@ -18,13 +18,13 @@ import (
 
 // FakeStrategies implements StrategyInterface
 type FakeStrategies struct {
-	Fake *FakeIdentitatemV1alpha1
+	Fake *FakeIdentityconfigV1alpha1
 	ns   string
 }
 
-var strategiesResource = schema.GroupVersionResource{Group: "identitatem.io", Version: "v1alpha1", Resource: "strategies"}
+var strategiesResource = schema.GroupVersionResource{Group: "identityconfig.identitatem.io", Version: "v1alpha1", Resource: "strategies"}
 
-var strategiesKind = schema.GroupVersionKind{Group: "identitatem.io", Version: "v1alpha1", Kind: "Strategy"}
+var strategiesKind = schema.GroupVersionKind{Group: "identityconfig.identitatem.io", Version: "v1alpha1", Kind: "Strategy"}
 
 // Get takes name of the strategy, and returns the corresponding strategy object, and an error if there is any.
 func (c *FakeStrategies) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Strategy, err error) {

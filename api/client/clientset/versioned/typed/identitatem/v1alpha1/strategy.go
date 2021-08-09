@@ -43,7 +43,7 @@ type strategies struct {
 }
 
 // newStrategies returns a Strategies
-func newStrategies(c *IdentitatemV1alpha1Client, namespace string) *strategies {
+func newStrategies(c *IdentityconfigV1alpha1Client, namespace string) *strategies {
 	return &strategies{
 		client: c.RESTClient(),
 		ns:     namespace,

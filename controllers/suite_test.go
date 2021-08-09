@@ -85,7 +85,7 @@ var _ = Describe("Process Strategy: ", func() {
 					StrategyType: identitatemv1alpha1.GrcStrategyType,
 				},
 			}
-			_, err := identitatemClientSet.IdentitatemV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
@@ -102,7 +102,7 @@ var _ = Describe("Process Strategy: ", func() {
 			if err != nil {
 				return err
 			}
-			authRealm, err := identitatemClientSet.IdentitatemV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			authRealm, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading authrealm", "Error", err)
 				return err

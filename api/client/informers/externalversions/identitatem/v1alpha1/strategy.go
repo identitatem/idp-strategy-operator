@@ -48,13 +48,13 @@ func NewFilteredStrategyInformer(client versioned.Interface, namespace string, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.IdentitatemV1alpha1().Strategies(namespace).List(context.TODO(), options)
+				return client.IdentityconfigV1alpha1().Strategies(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.IdentitatemV1alpha1().Strategies(namespace).Watch(context.TODO(), options)
+				return client.IdentityconfigV1alpha1().Strategies(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&identitatemv1alpha1.Strategy{},

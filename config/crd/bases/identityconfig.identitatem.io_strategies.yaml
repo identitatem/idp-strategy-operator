@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0
   creationTimestamp: null
-  name: strategies.identitatem.io
+  name: strategies.identityconfig.identitatem.io
 spec:
-  group: identitatem.io
+  group: identityconfig.identitatem.io
   names:
     kind: Strategy
     listKind: StrategyList
