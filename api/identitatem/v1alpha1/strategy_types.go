@@ -45,11 +45,6 @@ type StrategyStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-const (
-	StrategyFailed  string = "Failed"
-	StrategySucceed string = "Succeed"
-)
-
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
