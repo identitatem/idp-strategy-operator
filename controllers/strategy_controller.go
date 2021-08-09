@@ -60,24 +60,23 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Check StrategyType
-	if (instance.Spec.StrategyType == identitatemv1alpha1.BackplaneStrategyType) {
-		r.Log.Info("Instance", "Handle Backplane StrategyType")
+	if instance.Spec.StrategyType == identitatemv1alpha1.BackplaneStrategyType {
+		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
 
 		// create placement with backplane filters/predicates
 		// condition = PlacementCreated
 
-	} else if (instance.Spec.StrategyType == identitatemv1alpha1.GrcStrategyType
-		r.Log.Info("Instance", "Handle GRC StrategyType")
-	
-		// create placement with grc filters/predicaes
-	    // condition = PlacementCreated
+	} else if instance.Spec.StrategyType == identitatemv1alpha1.GrcStrategyType {
 
-	}
-	else {
-		r.Log.Error(  ("Instance", "StrategyType", instance.Spec.StrategyType)
+		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
+
+		// create placement with grc filters/predicaes
+		// condition = PlacementCreated
+
+	} else {
+		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
 		return reconcile.Result{}, nil
 	}
-
 
 	if err := r.Client.Update(context.TODO(), instance); err != nil {
 		return ctrl.Result{}, err
