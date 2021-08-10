@@ -60,21 +60,21 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Check StrategyType
-	if instance.Spec.StrategyType == identitatemv1alpha1.BackplaneStrategyType {
-		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
+	if instance.Spec.Type == identitatemv1alpha1.BackplaneStrategyType {
+		r.Log.Info("Instance", "Type", instance.Spec.Type)
 
 		// create placement with backplane filters/predicates
 		// condition = PlacementCreated
 
-	} else if instance.Spec.StrategyType == identitatemv1alpha1.GrcStrategyType {
+	} else if instance.Spec.Type == identitatemv1alpha1.GrcStrategyType {
 
-		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
+		r.Log.Info("Instance", "Type", instance.Spec.Type)
 
 		// create placement with grc filters/predicaes
 		// condition = PlacementCreated
 
 	} else {
-		r.Log.Info("Instance", "StrategyType", instance.Spec.StrategyType)
+		r.Log.Info("Instance", "StrategyType", instance.Spec.Type)
 		return reconcile.Result{}, nil
 	}
 

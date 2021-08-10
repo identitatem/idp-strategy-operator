@@ -57,56 +57,61 @@ var _ = Describe("Strategy", func() {
 	})
 
 	It("process a Strategy", func() {
+		name := "my-backplane-strategy"
+		namespace := "default"
+
 		By("Create a Backplane Strategy", func() {
 			strategy := identitatemv1alpha1.Strategy{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "mystrategy",
-					Namespace: "default",
+					Name:      name,
+					Namespace: namespace,
 				},
 				Spec: identitatemv1alpha1.StrategySpec{
-					StrategyType: identitatemv1alpha1.BackplaneStrategyType,
+					Type: identitatemv1alpha1.BackplaneStrategyType,
 				},
 			}
-			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
-			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading strategy", "Error", err)
 				return err
 			}
 
-			if len(strategy.Spec.StrategyType) == 0 || strategy.Spec.StrategyType !== identitatemv1alpha1.BackplaneStrategyType,{
-				logf.Log.Info("Strategy StrategyType is still wrong!")
+			if len(strategy.Spec.Type) == 0 || strategy.Spec.Type != identitatemv1alpha1.BackplaneStrategyType {
+				logf.Log.Info("Strategy Type is still wrong!")
 				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
 			}
 			return nil
 		}, 30, 1).Should(BeNil())
 
-
+		name = "my-grc-strategy"
+		namespace = "default"
 		By("Create a GRC Strategy", func() {
+
 			strategy := identitatemv1alpha1.Strategy{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "mystrategy",
-					Namespace: "default",
+					Name:      name,
+					Namespace: namespace,
 				},
 				Spec: identitatemv1alpha1.StrategySpec{
-					StrategyType: identitatemv1alpha1.GrcStrategyType,
+					Type: identitatemv1alpha1.GrcStrategyType,
 				},
 			}
-			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
-			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			strategy, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading strategy", "Error", err)
 				return err
 			}
 
-			if len(strategy.Spec.StrategyType) == 0 || strategy.Spec.StrategyType !== identitatemv1alpha1.GrcStrategyType,{
-				logf.Log.Info("Strategy StrategyType is still empty")
+			if len(strategy.Spec.Type) == 0 || strategy.Spec.Type != identitatemv1alpha1.GrcStrategyType {
+				logf.Log.Info("Strategy Type is still empty")
 				return fmt.Errorf("Strategy %s/%s not processed", strategy.Namespace, strategy.Name)
 			}
 			return nil

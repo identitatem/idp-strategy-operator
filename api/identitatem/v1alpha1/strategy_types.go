@@ -19,7 +19,7 @@ type StrategySpec struct {
 	// Strategy to use for applying the AuthRealm to the managed clusters
 	// +kubebuilder:validation:Enum=backplane;grc
 	// +required
-	StrategyType StrategyType `json:"type"`
+	Type StrategyType `json:"type"`
 
 	// Reference to a Placement CR created by the Strategy operator
 	// reference to a Placement CR created by the strategy operator that is a copy of the placement (Placement)
