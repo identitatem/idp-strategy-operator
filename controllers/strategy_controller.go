@@ -6,17 +6,21 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
 	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
 	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+
 	//ocm "github.com/open-cluster-management-io/api/cluster/v1alpha1"
+	clusterapiv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 )
 
 // StrategyReconciler reconciles a Strategy object
@@ -61,51 +65,119 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	// Check for placement and build if it does not exist
-	///TODO Why can't I check for nil?
-	if instance.Spec.PlacementRef.Size() == 0 {
-		authrealm := &identitatemmgmtv1alpha1.AuthRealm{}
-		//placementInfo := &identitatemmgmtv1alpha1.Placement{}
-		//var predicates []clusterapiv1alpha1.ClusterPredicate
-		//matchexpressions := &clusterapiv1alpha1.ClusterClaimSelector.MatchExpressions[]
-		//labelselector := &metav1.LabelSelector.
+	r.Log.Info("Running Reconcile for Strategy.", "Name: ", instance.Name, " Namespace:", instance.Namespace)
 
-		//apiVersion: cluster.open-cluster-management.io/v1alpha1
-		//kind: Placement
-		//metadata:
-		//  name: placement-policy-cert-ocp4
-		//spec:
-		//  predicates:
-		//  - requiredClusterSelector:
-		//      labelSelector:
-		//        matchExpressions:
-		//          - {key: vendor, operator: In, values: ["OpenShift"]}
+	//apiVersion: cluster.open-cluster-management.io/v1alpha1
+	//kind: Placement
+	//metadata:
+	//  name: placement-policy-cert-ocp4
+	//spec:
+	//  predicates:
+	//  - requiredClusterSelector:
+	//      labelSelector:
+	//        matchExpressions:
+	//          - {key: vendor, operator: In, values: ["OpenShift"]}
 
-		//	newPlacement := &clusterapiv1alpha1.Placement{
-		//			ObjectMeta: metav1.ObjectMeta{
-		//				Namespace: req.Namespace,
-		//				Name:      req.Name,
-		//			},
-		//			Spec: clusterapiv1alpha1.PlacementSpec{
-		//				Predicates: predicates,
-		//			},
-		//		}
-		//placement, err = clusterClient.ClusterV1alpha1().Placements(namespace).Create(context.Background(), newPlacement, metav1.CreateOptions{})
+	//					// add a predicates
+	//					placement, err := clusterClient.ClusterV1alpha1().Placements(namespace).Get(context.Background(), placementName, metav1.GetOptions{})
+	//					placement.Spec.Predicates = []clusterapiv1alpha1.ClusterPredicate{
+	//						{
+	//							RequiredClusterSelector: clusterapiv1alpha1.ClusterSelector{
+	//								LabelSelector: metav1.LabelSelector{
+	//									MatchLabels: map[string]string{
+	//										"cloudservices": instance.Spec.type,    //use for now until we get new function
+	//									},
+	//								},
+	//							},
+	//						},
+	//					}
+	//					placement, err = clusterClient.ClusterV1alpha1().Placements(namespace).Update(context.Background(), placement, metav1.UpdateOptions{})
 
-		//clusterapiv1alpha1.PlacementDecision
+	// Get the AuthRealm Placement bits we need to help create a new Placement
+	authrealm := &identitatemmgmtv1alpha1.AuthRealm{}
 
-		// get placement info from ownerRef AuthRealm
-		ownerRefs := instance.GetOwnerReferences()
-		//ownerRefs := instance.ObjectMeta.OwnerReferences
-		//ownerRef := &metav1.OwnerReference{}
+	r.Log.Info("Looking for AuthRealm in ownerRefs")
+	// get placement info from AuthRealm ownerRef
+	var ownerRef metav1.OwnerReference
+	placementInfo := &identitatemmgmtv1alpha1.Placement{}
+	//for _, or := range ownerRefs {
+	for _, or := range instance.GetOwnerReferences() {
+		r.Log.Info("Check OwnerRef ", or.Name)
 
-		for _, ownerRef := range ownerRefs {
-			if ownerRef.Kind == authrealm.Kind {
-				placementInfo := authrealm.Spec.Placement
-				r.Log.Info("Placement name", placementInfo.Name)
-			}
+		if or.Kind == authrealm.Kind {
+			placementInfo = authrealm.Spec.Placement
+			r.Log.Info("Found AuthRealm.  Placement name", placementInfo.Name)
+			ownerRef = or
+			break
 		}
 	}
+	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: ownerRef.Name, Namespace: req.Namespace}, authrealm); err != nil {
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	authRealmPlacement := &clusterapiv1alpha1.Placement{}
+	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: placementInfo.Name, Namespace: req.Namespace}, authRealmPlacement); err != nil {
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	//Make sure Placement is created and correct
+	//TODO!!! Right now we will have to manullay add a label to managed clusters in order for the placementDecision
+	//        to return a result cloudservices=grc|backplane
+	placementExists := true
+	newPlacement := &clusterapiv1alpha1.Placement{}
+	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: req.Name, Namespace: req.Namespace}, newPlacement); err != nil {
+		if !errors.IsNotFound(err) {
+			return reconcile.Result{}, err
+		}
+		placementExists = false
+		// Not Found! Create
+		newPlacement = &clusterapiv1alpha1.Placement{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: req.Namespace,
+				Name:      req.Name,
+			},
+			Spec: clusterapiv1alpha1.PlacementSpec{
+				Predicates: []clusterapiv1alpha1.ClusterPredicate{
+					{
+						RequiredClusterSelector: clusterapiv1alpha1.ClusterSelector{
+							LabelSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"cloudservices": string(instance.Spec.Type),
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		// Append any additional predicates the AuthRealm already had on it's Placement
+		newPlacement.Spec.Predicates = append(newPlacement.Spec.Predicates, authrealm.Spec.Placement.Spec.Predicates...)
+		// Set owner reference for cleanup
+		controllerutil.SetOwnerReference(instance, newPlacement, r.Scheme)
+	}
+
+	switch placementExists {
+	case true:
+		if err := r.Client.Update(context.TODO(), newPlacement); err != nil {
+			// Error reading the object - requeue the request.
+			return reconcile.Result{}, err
+		}
+	case false:
+		if err := r.Client.Create(context.Background(), newPlacement); err != nil {
+			// Error reading the object - requeue the request.
+			return reconcile.Result{}, err
+		}
+	}
+
+	// update the Placement ref
+	instance.Spec.PlacementRef.Name = newPlacement.Name
+	if err := r.Client.Update(context.Background(), instance); err != nil {
+		// Error updating the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
 	// Check StrategyType
 	//Backplane/Multi cluster engine for Kubernetes
 	if instance.Spec.Type == identitatemstrategyv1alpha1.BackplaneStrategyType {
@@ -167,5 +239,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&identitatemstrategyv1alpha1.Strategy{}).
+		Owns(&clusterapiv1alpha1.Placement{}).
+		//Watches(&source.Kind{Type: &clusterapiv1alpha1.PlacementDecision{}, })  //TODO
 		Complete(r)
 }

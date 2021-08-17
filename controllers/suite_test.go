@@ -10,6 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -20,15 +21,20 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	strategyclientset "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
-	identitatemv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	clientsetmgmt "github.com/identitatem/idp-mgmt-operator/api/client/clientset/versioned"
+	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
+
+	clientsetstrategy "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
+	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	openshiftconfigv1 "github.com/openshift/api/config/v1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var cfg *rest.Config
-var identitatemClientSet *strategyclientset.Clientset
+var clientSetMgmt *clientsetmgmt.Clientset
+var clientSetStrategy *clientsetstrategy.Clientset
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
@@ -54,12 +60,19 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
+	err = identitatemstrategyv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	identitatemClientSet, err = strategyclientset.NewForConfig(cfg)
+	clientSetMgmt, err = clientsetmgmt.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(identitatemClientSet).ToNot(BeNil())
+	Expect(clientSetMgmt).ToNot(BeNil())
+
+	err = identitatemmgmtv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	clientSetStrategy, err = clientsetstrategy.NewForConfig(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(clientSetStrategy).ToNot(BeNil())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
@@ -74,18 +87,58 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process Strategy: ", func() {
+	AuthRealmName := "test-authrealm"
+	AuthRealmNameSpace := "test"
+	CertificatesSecretRef := "test-certs"
+	StrategyName := "test-strategy"
+
 	It("process a Strategy CR", func() {
 		By("creating a Strategy CR", func() {
-			strategy := identitatemv1alpha1.Strategy{
+			//first create AuthRealm
+			authRealm := &identitatemmgmtv1alpha1.AuthRealm{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "mystrategy",
-					Namespace: "default",
+					Name:      AuthRealmName,
+					Namespace: AuthRealmNameSpace,
 				},
-				Spec: identitatemv1alpha1.StrategySpec{
-					Type: identitatemv1alpha1.GrcStrategyType,
+				Spec: identitatemmgmtv1alpha1.AuthRealmSpec{
+					Type: identitatemmgmtv1alpha1.AuthProxyDex,
+					CertificatesSecretRef: corev1.LocalObjectReference{
+						Name: CertificatesSecretRef,
+					},
+					IdentityProviders: []identitatemmgmtv1alpha1.IdentityProvider{
+						{
+							GitHub: &openshiftconfigv1.GitHubIdentityProvider{},
+						},
+					},
 				},
 			}
-			_, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := clientSetMgmt.IdentityconfigV1alpha1().AuthRealms(AuthRealmNameSpace).Create(context.TODO(), authRealm, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+
+			strategy := &identitatemstrategyv1alpha1.Strategy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      StrategyName,
+					Namespace: AuthRealmNameSpace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Name: AuthRealmName,
+						},
+					},
+				},
+				Spec: identitatemstrategyv1alpha1.StrategySpec{
+					Type: identitatemstrategyv1alpha1.GrcStrategyType,
+				},
+			}
+
+			//_, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			//_, err := ClientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			//_, err := ClientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+
+			tmp, err := clientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), strategy, metav1.CreateOptions{})
+			if tmp == nil {
+				//just put this here to get no complaints...but need to remove.  _ instead of tmp did not work above
+			}
+
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {
@@ -102,7 +155,7 @@ var _ = Describe("Process Strategy: ", func() {
 			if err != nil {
 				return err
 			}
-			authRealm, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
+			authRealm, err := clientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Get(context.TODO(), "mystrategy", metav1.GetOptions{})
 			if err != nil {
 				logf.Log.Info("Error while reading authrealm", "Error", err)
 				return err
