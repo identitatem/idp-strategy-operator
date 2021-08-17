@@ -1,0 +1,8 @@
+apiVersion: identityconfig.identitatem.io/v1alpha1
+kind: Strategy
+metadata:
+  name: strategy-sample-backplane
+  namespace: default
+spec:
+  # Add fields here
+  type: backplane
