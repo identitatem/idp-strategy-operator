@@ -1,4 +1,4 @@
-# Copyright Contributors to the Open Cluster Management project
+# Copyright Red Hat
 
 name: Go
 
@@ -22,7 +22,7 @@ jobs:
     - name: Install kubebuilder
       uses: RyanSiu1995/kubebuilder-action@v1.2
       with:
-        version: 2.3.0        
+        version: 2.3.0
 
     - name: Functional Tests
       run: make functional-test-full

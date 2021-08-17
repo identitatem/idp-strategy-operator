@@ -1,5 +1,5 @@
 
-# Copyright Contributors to the Open Cluster Management project
+# Copyright Red Hat
 
 export PROJECT_DIR            = $(shell 'pwd')
 export PROJECT_NAME			  = $(shell basename ${PROJECT_DIR})

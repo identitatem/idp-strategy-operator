@@ -1,4 +1,4 @@
-// Copyright Contributors to the Open Cluster Management project
+// Copyright Red Hat
 
 package controllers
 
@@ -14,7 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	identitatemv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
+	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	//ocm "github.com/open-cluster-management-io/api/cluster/v1alpha1"
 )
 
 // StrategyReconciler reconciles a Strategy object
@@ -42,7 +44,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// your logic here
 	// Fetch the ManagedCluster instance
-	instance := &identitatemv1alpha1.Strategy{}
+	instance := &identitatemstrategyv1alpha1.Strategy{}
 
 	if err := r.Client.Get(
 		context.TODO(),
@@ -59,19 +61,95 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
+	// Check for placement and build if it does not exist
+	///TODO Why can't I check for nil?
+	if instance.Spec.PlacementRef.Size() == 0 {
+		authrealm := &identitatemmgmtv1alpha1.AuthRealm{}
+		//placementInfo := &identitatemmgmtv1alpha1.Placement{}
+		//var predicates []clusterapiv1alpha1.ClusterPredicate
+		//matchexpressions := &clusterapiv1alpha1.ClusterClaimSelector.MatchExpressions[]
+		//labelselector := &metav1.LabelSelector.
+
+		//apiVersion: cluster.open-cluster-management.io/v1alpha1
+		//kind: Placement
+		//metadata:
+		//  name: placement-policy-cert-ocp4
+		//spec:
+		//  predicates:
+		//  - requiredClusterSelector:
+		//      labelSelector:
+		//        matchExpressions:
+		//          - {key: vendor, operator: In, values: ["OpenShift"]}
+
+		//	newPlacement := &clusterapiv1alpha1.Placement{
+		//			ObjectMeta: metav1.ObjectMeta{
+		//				Namespace: req.Namespace,
+		//				Name:      req.Name,
+		//			},
+		//			Spec: clusterapiv1alpha1.PlacementSpec{
+		//				Predicates: predicates,
+		//			},
+		//		}
+		//placement, err = clusterClient.ClusterV1alpha1().Placements(namespace).Create(context.Background(), newPlacement, metav1.CreateOptions{})
+
+		//clusterapiv1alpha1.PlacementDecision
+
+		// get placement info from ownerRef AuthRealm
+		ownerRefs := instance.GetOwnerReferences()
+		//ownerRefs := instance.ObjectMeta.OwnerReferences
+		//ownerRef := &metav1.OwnerReference{}
+
+		for _, ownerRef := range ownerRefs {
+			if ownerRef.Kind == authrealm.Kind {
+				placementInfo := authrealm.Spec.Placement
+				r.Log.Info("Placement name", placementInfo.Name)
+			}
+		}
+	}
 	// Check StrategyType
-	if instance.Spec.Type == identitatemv1alpha1.BackplaneStrategyType {
+	//Backplane/Multi cluster engine for Kubernetes
+	if instance.Spec.Type == identitatemstrategyv1alpha1.BackplaneStrategyType {
 		r.Log.Info("Instance", "Type", instance.Spec.Type)
 
 		// create placement with backplane filters/predicates
+		//   add predicate for policy controller addon NOT PRESENT
 		// condition = PlacementCreated
+		// need to wait for PlacementDecision to trigger next step
 
-	} else if instance.Spec.Type == identitatemv1alpha1.GrcStrategyType {
+		// GRC available - Advanced Cluster Management
+	} else if instance.Spec.Type == identitatemstrategyv1alpha1.GrcStrategyType {
 
 		r.Log.Info("Instance", "Type", instance.Spec.Type)
 
-		// create placement with grc filters/predicaes
+		//		if instance.Status.Conditions == nil {
+		//			var newConditions []metav1.Condition
+		//			now := metav1.Now()
+		//			newCondition := metav1.Condition{
+		//				Type:               "TestStrategyType",
+		//				Status:             metav1.ConditionUnknown,
+		//				Reason:             "TestStrategyReason",
+		//				Message:            "Condition Initialized",
+		//				LastTransitionTime: now,
+		//			}
+		//			//newConditions.add(newCondition)
+		//			newConditions = append(newConditions, newCondition)
+		//			//newConditions[0] = newCondition
+		//
+		//			r.Log.Info("UpdateCondition")
+		//
+		//			instance.Status.Conditions = newConditions
+		//			if err := r.Client.Update(context.TODO(), instance); err != nil {
+		//				return ctrl.Result{}, err
+		//			}
+		//		}
+
+		// GRC available - Advanced Cluster Management
+
+		// get placement info from ownerRef AuthRealm
+		// create placement with backplane filters/predicates
+		//   add predicate for policy controller addon == true
 		// condition = PlacementCreated
+		// need to wait for PlacementDecision to trigger next step
 
 	} else {
 		r.Log.Info("Instance", "StrategyType", instance.Spec.Type)
@@ -88,6 +166,6 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 // SetupWithManager sets up the controller with the Manager.
 func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&identitatemv1alpha1.Strategy{}).
+		For(&identitatemstrategyv1alpha1.Strategy{}).
 		Complete(r)
 }

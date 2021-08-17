@@ -1,4 +1,4 @@
-// Copyright Contributors to the Open Cluster Management project
+// Copyright Red Hat
 
 package v1alpha1
 
@@ -40,10 +40,43 @@ type StrategyStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make generate-clients" to regenerate code after modifying this file
 
-	// Conditions contains the different condition statuses for this AuthRealm.
+	// Conditions contains the different condition statuses for this Strategy.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+//type StrategyCondition string
+//
+//// Strategy Conditions
+//const (
+//	InitializingCondition StrategyCondition = "Initializing"
+//	PlacementCondition    StrategyCondition = "Placement"
+//	FailedCondition       StrategyCondition = "Failed"
+//)
+//
+//// Placement Condition reasons
+//const (
+//	// BuildingPlacemenReason is used as the reason when the Placement policy is being created
+//	BuildingPlacementReason = "BuildingPlacement"
+//	// AwaitingPlacementDecisionReason is used as the reason when the Strategy is waiting for the Placement to
+//	// be processed and a PlacementDecision to be generated
+//	AwaitingPlacementDecisionReason = "AwaitingPlacementDecision"
+//	// ProcessingPlacementDecisionReason is used as the reason when the managed clusters to apply the strategy
+//	// to have been determined and the configuration of those managed clusters has begun
+//	ProcessingPlacmentDecisionReason = "ProcessingPlacementDecision"
+//	// CompletedPlacementReason is used as the reason when the processing of the placement decision has been
+//	// completed
+//	CompletedPlacmentReason = "Completed"
+//)
+//
+//// Failed Condition reasons
+//const (
+//	// PlacementErrorFailedReason is used as the reason when the Placement policy
+//	PlacementErrorFailedReason = "PlacementError"
+//	// GeneralErrorFailedReason is used as the reason when there is an error not handled by
+//	// any of the above reasons
+//	GeneralErrorFailedReason = "GeneralError"
+//)
 
 // +genclient
 // +kubebuilder:object:root=true
