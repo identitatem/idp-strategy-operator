@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -51,7 +52,9 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases"),
+			//DV added this line and copyed the authrealms CRD
+			filepath.Join("..", "config", "crd", "external")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -133,6 +136,9 @@ var _ = Describe("Process Strategy: ", func() {
 			//_, err := identitatemClientSet.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			//_, err := ClientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
 			//_, err := ClientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), &strategy, metav1.CreateOptions{})
+
+			//DV Added this to set the ownerref
+			controllerutil.SetOwnerReference(authRealm, strategy, scheme.Scheme)
 
 			tmp, err := clientSetStrategy.IdentityconfigV1alpha1().Strategies("default").Create(context.TODO(), strategy, metav1.CreateOptions{})
 			if tmp == nil {
