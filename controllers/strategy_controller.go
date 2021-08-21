@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	ocinfrav1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,10 +27,11 @@ import (
 
 	"github.com/go-logr/logr"
 	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
+	"github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned/scheme"
 	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
 
 	// identitatemdexserverv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
-	identitatemdexserverv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
+	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 
 	//ocm "github.com/open-cluster-management-io/api/cluster/v1alpha1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
@@ -401,13 +403,13 @@ func (r *StrategyReconciler) addOAuth(decision clusterv1alpha1.ClusterDecision, 
 
 func (r *StrategyReconciler) createDexClient(authrealm *identitatemmgmtv1alpha1.AuthRealm, decision clusterv1alpha1.ClusterDecision, clientSecret *corev1.Secret) error {
 	dexClientExists := true
-	dexClient := &identitatemdexserverv1alpha1.DexClient{}
+	dexClient := &identitatemdexv1alpha1.DexClient{}
 	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: decision.ClusterName, Namespace: authrealm.Name}, dexClient); err != nil {
 		if !errors.IsNotFound(err) {
 			return err
 		}
 		dexClientExists = false
-		dexClient = &identitatemdexserverv1alpha1.DexClient{
+		dexClient = &identitatemdexv1alpha1.DexClient{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      decision.ClusterName,
 				Namespace: authrealm.Name,
@@ -448,6 +450,18 @@ func (r *StrategyReconciler) createDexClient(authrealm *identitatemmgmtv1alpha1.
 // SetupWithManager sets up the controller with the Manager.
 func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := clusterv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+
+	if err := workv1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+
+	if err := identitatemdexv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		return err
+	}
+
+	if err := ocinfrav1.AddToScheme(scheme.Scheme); err != nil {
 		return err
 	}
 

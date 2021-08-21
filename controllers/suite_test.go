@@ -30,6 +30,7 @@ import (
 	clientsetmgmt "github.com/identitatem/idp-mgmt-operator/api/client/clientset/versioned"
 	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
 
+	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 	clientsetstrategy "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
 	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
 	openshiftconfigv1 "github.com/openshift/api/config/v1"
@@ -76,10 +77,16 @@ var _ = BeforeSuite(func() {
 	err = identitatemmgmtv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = identitatemdexv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).Should(BeNil())
+
 	err = clusterv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = workv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	clientSetMgmt, err = clientsetmgmt.NewForConfig(cfg)
@@ -102,6 +109,20 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	By("Creating infra", func() {
+		infraConfig := &openshiftconfigv1.Infrastructure{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: openshiftconfigv1.InfrastructureSpec{},
+			Status: openshiftconfigv1.InfrastructureStatus{
+				APIServerURL: "http://127.0.0.1:6443",
+			},
+		}
+		err := k8sClient.Create(context.TODO(), infraConfig)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -123,6 +144,15 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: AuthRealmNameSpace,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), ns)
+			Expect(err).To(BeNil())
+		})
+		By("creation test-authrealm namespace", func() {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: AuthRealmName,
 				},
 			}
 			err := k8sClient.Create(context.TODO(), ns)
