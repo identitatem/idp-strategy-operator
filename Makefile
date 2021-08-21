@@ -82,11 +82,11 @@ generate-clients: manifests generate
 	./hack/update-codegen.sh
 
 # Build the docker image
-docker-build: test
+docker-build: 
 	docker build . -t ${IMG}
 
 # Build the docker image
-docker-build-coverage: test docker-build
+docker-build-coverage: docker-build
 	docker build . \
 	--build-arg DOCKER_BASE_IMAGE=${IMG} \
 	-f Dockerfile-coverage \
