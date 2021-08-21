@@ -434,7 +434,7 @@ func (r *StrategyReconciler) createDexClient(authrealm *identitatemmgmtv1alpha1.
 
 	host = strings.Replace(host, "api", "apps", 1)
 
-	redirectURI := fmt.Sprintf("%s://%s/oauth2callback/%s", u.Scheme, host, authrealm.Spec.IdentityProviders)
+	redirectURI := fmt.Sprintf("%s://%s/oauth2callback/idpserver", u.Scheme, host)
 	dexClient.Spec.RedirectURIs = []string{redirectURI}
 	switch dexClientExists {
 	case true:
