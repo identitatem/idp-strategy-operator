@@ -101,14 +101,14 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	@{ \
+	@( \
 	set -e ;\
 	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$CONTROLLER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
 	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.0 ;\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
-	}
+	)
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
@@ -116,13 +116,13 @@ endif
 
 kubebuilder-tools:
 ifeq (, $(shell which kubebuilder))
-	@{ \
+	@( \
 		set -ex ;\
 		KUBEBUILDER_TMP_DIR=$$(mktemp -d) ;\
 		cd $$KUBEBUILDER_TMP_DIR ;\
 		curl -L -o $$KUBEBUILDER_TMP_DIR/kubebuilder https://go.kubebuilder.io/dl/3.1.0/$$(go env GOOS)/$$(go env GOARCH) ;\
 		chmod +x $$KUBEBUILDER_TMP_DIR/kubebuilder && mv $$KUBEBUILDER_TMP_DIR/kubebuilder /usr/local/bin/ ;\
-	}
+	)
 endif
 
 functional-test-full: docker-build-coverage
@@ -146,7 +146,7 @@ functional-test:
 # This will allow you to run `make test`
 envtest-tools:
 ifeq (, $(shell which etcd))
-		@{ \
+		@( \
 			set -ex ;\
 			ENVTEST_TMP_DIR=$$(mktemp -d) ;\
 			cd $$ENVTEST_TMP_DIR ;\
@@ -155,5 +155,5 @@ ifeq (, $(shell which etcd))
 			tar xf envtest-bins.tar.gz ;\
 			mv $$ENVTEST_TMP_DIR/kubebuilder $$HOME ;\
 			rm -rf $$ENVTEST_TMP_DIR ;\
-		}
+		)
 endif
