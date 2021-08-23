@@ -599,6 +599,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:
 github.com/identitatem/dex-operator v0.0.4-0.20210818160217-d91d9387dda1/go.mod h1:KRhw4eGjB5/Ck4UMRUT1e6Rf/+1irRJvhvS3Uhvb0do=
 github.com/identitatem/dex-operator v0.0.4-0.20210823143514-03bf1caa0cb1 h1:kyrYD9SFQe+BSRD84rh/oQ8a663NbJyZBVfkm8FhRF8=
 github.com/identitatem/dex-operator v0.0.4-0.20210823143514-03bf1caa0cb1/go.mod h1:Z37xv2KN5CsHycQOEUkJxANhVqY6x5D31dxE81+50kg=
+github.com/identitatem/idp-mgmt-operator v0.0.0-20210818210855-8eb7808be310 h1:HMnYxWCxwmsvYe8Em1fVkM4jOelY3mKvbO3W4GB/HFA=
+github.com/identitatem/idp-mgmt-operator v0.0.0-20210818210855-8eb7808be310/go.mod h1:FuaE9NEqCPpV/yACowaU2bV1GiCMaWmstzOtpAWzZ/A=
 github.com/identitatem/idp-strategy-operator v0.0.0-20210809192815-024cce5d037e/go.mod h1:DKmdBl4qjyFaHMcJESLqxCTVLHoCbKVy2ud5JgXIGHw=
 github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.6/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
