@@ -131,6 +131,9 @@ functional-test-full: docker-build-coverage
 functional-test-full-clean: 
 	@build/run-functional-tests-clean.sh
 
+functional-test-crds:
+	@for FILE in "test/config/crd/external"; do kubectl apply -f $$FILE;done
+
 functional-test:
 	@echo running functional tests
 	ginkgo -tags functional -v --slowSpecThreshold=30 test/functional -- -v=5

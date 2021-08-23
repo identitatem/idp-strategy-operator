@@ -4,19 +4,17 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
-	"strings"
 	"time"
 
 	ocinfrav1 "github.com/openshift/api/config/v1"
-	corev1 "k8s.io/api/core/v1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -34,17 +32,19 @@ import (
 	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 
 	//ocm "github.com/open-cluster-management-io/api/cluster/v1alpha1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	workv1 "open-cluster-management.io/api/work/v1"
-
-	"github.com/identitatem/idp-strategy-operator/pkg/helpers"
 )
 
 // StrategyReconciler reconciles a Strategy object
 type StrategyReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	KubeClient         kubernetes.Interface
+	DynamicClient      dynamic.Interface
+	APIExtensionClient apiextensionsclient.Interface
+	Log                logr.Logger
+	Scheme             *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies,verbs=get;list;watch;create;update;patch;delete
@@ -303,153 +303,13 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-//DV
-//backplaneStrategy generates resources for the Backplane strategy
-func (r *StrategyReconciler) backplaneStrategy(strategy *identitatemstrategyv1alpha1.Strategy,
-	authrealm *identitatemmgmtv1alpha1.AuthRealm,
-	placement *clusterv1alpha1.Placement,
-	placementDecision *clusterv1alpha1.PlacementDecision) error {
-	//For all clusters in the placement decisiont
-	for _, decision := range placementDecision.Status.Decisions {
-		mw := &workv1.ManifestWork{}
-		mwExists := true
-		if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: "idp", Namespace: decision.ClusterName}, mw); err != nil {
-			if !errors.IsNotFound(err) {
-				return err
-			}
-			mwExists = false
-			mw = &workv1.ManifestWork{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "idp",
-					Namespace: decision.ClusterName,
-				},
-			}
-		}
-
-		mw.Spec.Workload.Manifests = make([]workv1.Manifest, 0)
-
-		clientSecret, err := r.addClientSecret(decision, mw)
-		if err != nil {
-			return err
-		}
-
-		if err := r.addOAuth(decision, mw); err != nil {
-			return err
-		}
-
-		switch mwExists {
-		case true:
-			if err := r.Client.Update(context.TODO(), mw); err != nil {
-				// Error reading the object - requeue the request.
-				return err
-			}
-		case false:
-			if err := r.Client.Create(context.Background(), mw); err != nil {
-				// Error reading the object - requeue the request.
-				return err
-			}
-		}
-
-		if err := r.createDexClient(authrealm, decision, clientSecret); err != nil {
-			return err
-		}
-
-	}
-	return nil
-}
-
-//DV
-//grcStrategy generates resources for the GRC strategy
-func (r *StrategyReconciler) grcStrategy(strategy *identitatemstrategyv1alpha1.Strategy,
-	placement *clusterv1alpha1.Placement,
-	placementDecision *clusterv1alpha1.PlacementDecision) error {
-	return nil
-}
-
-func (r *StrategyReconciler) addClientSecret(decision clusterv1alpha1.ClusterDecision, mw *workv1.ManifestWork) (*corev1.Secret, error) {
-	//Build secret
-	clientSecret := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Secret",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "idp-client-secret",
-			Namespace: decision.ClusterName,
-		},
-		Data: map[string][]byte{
-			"client-id":     []byte(decision.ClusterName),
-			"client-secret": []byte(helpers.RandStringRunes(32)),
-		},
-	}
-
-	clientSecretJSON, err := json.Marshal(clientSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	mw.Spec.Workload.Manifests = append(mw.Spec.Workload.Manifests, workv1.Manifest{
-		RawExtension: runtime.RawExtension{Raw: clientSecretJSON},
-	})
-
-	return clientSecret, nil
-
-}
-
-func (r *StrategyReconciler) addOAuth(decision clusterv1alpha1.ClusterDecision, mw *workv1.ManifestWork) error {
-
-	return nil
-}
-
-func (r *StrategyReconciler) createDexClient(authrealm *identitatemmgmtv1alpha1.AuthRealm, decision clusterv1alpha1.ClusterDecision, clientSecret *corev1.Secret) error {
-	dexClientExists := true
-	dexClient := &identitatemdexv1alpha1.DexClient{}
-	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: decision.ClusterName, Namespace: authrealm.Name}, dexClient); err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-		dexClientExists = false
-		dexClient = &identitatemdexv1alpha1.DexClient{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      decision.ClusterName,
-				Namespace: authrealm.Name,
-			},
-		}
-	}
-
-	dexClient.Spec.ClientID = string(clientSecret.Data["client-id"])
-	dexClient.Spec.ClientSecret = string(clientSecret.Data["client-secret"])
-
-	apiServerURL, err := helpers.GetKubeAPIServerAddress(r.Client)
-	if err != nil {
-		return err
-	}
-	u, err := url.Parse(apiServerURL)
-	if err != nil {
-		return err
-	}
-
-	host, _, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return err
-	}
-
-	host = strings.Replace(host, "api", "apps", 1)
-
-	redirectURI := fmt.Sprintf("%s://%s/oauth2callback/idpserver", u.Scheme, host)
-	dexClient.Spec.RedirectURIs = []string{redirectURI}
-	switch dexClientExists {
-	case true:
-		return r.Client.Update(context.TODO(), dexClient)
-	case false:
-		return r.Client.Create(context.Background(), dexClient)
-	}
-	return nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := clusterv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+
+	if err := clusterv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
@@ -485,7 +345,7 @@ func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				strategies := &identitatemstrategyv1alpha1.StrategyList{}
 				err = r.Client.List(context.TODO(), strategies, client.MatchingFields{
 					"spec.placementRef.name": placement.Name,
-				})
+				}, &client.ListOptions{Namespace: o.GetNamespace()})
 				if err != nil {
 					r.Log.Error(err, "Error while getting the list of strategies")
 					return []ctrl.Request{}

@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -22,18 +25,22 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	openshiftconfigv1 "github.com/openshift/api/config/v1"
 	clientsetcluster "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clientsetwork "open-cluster-management.io/api/client/work/clientset/versioned"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
+	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
+	dexoperatorconfig "github.com/identitatem/dex-operator/config"
 	clientsetmgmt "github.com/identitatem/idp-mgmt-operator/api/client/clientset/versioned"
 	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
-
-	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
+	idpmgmtoperatorconfig "github.com/identitatem/idp-mgmt-operator/config"
 	clientsetstrategy "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
 	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
-	openshiftconfigv1 "github.com/openshift/api/config/v1"
+	idpstrategyoperatorconfig "github.com/identitatem/idp-strategy-operator/config"
+	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -58,15 +65,31 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	readerMgmt := idpmgmtoperatorconfig.GetScenarioResourcesReader()
+	authrealmCRD, err := getCRD(readerMgmt, "crd/bases/identityconfig.identitatem.io_authrealms.yaml")
+	Expect(err).Should(BeNil())
+
+	readerDex := dexoperatorconfig.GetScenarioResourcesReader()
+	dexClientCRD, err := getCRD(readerDex, "crd/bases/auth.identitatem.io_dexclients.yaml")
+	Expect(err).Should(BeNil())
+
+	dexServerCRD, err := getCRD(readerDex, "crd/bases/auth.identitatem.io_dexservers.yaml")
+	Expect(err).Should(BeNil())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases"),
+		CRDs: []client.Object{
+			authrealmCRD,
+			dexClientCRD,
+			dexServerCRD,
+		},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "config", "crd", "bases"),
 			//DV added this line and copyed the authrealms CRD
-			filepath.Join("..", "config", "crd", "external")},
+			filepath.Join("..", "test", "config", "crd", "external"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
-
-	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
@@ -81,6 +104,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	err = clusterv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = clusterv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = workv1.AddToScheme(scheme.Scheme)
@@ -132,12 +158,20 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Process Strategy backplane: ", func() {
-	AuthRealmName := "test-authrealm"
-	AuthRealmNameSpace := "test"
-	CertificatesSecretRef := "test-certs"
-	StrategyName := "test-strategy"
-	PlacementName := "test-placement"
-	ClusterName := "mycluster"
+	AuthRealmName := "my-authrealm"
+	AuthRealmNameSpace := "my-autherealmns"
+	CertificatesSecretRef := "my-certs"
+	StrategyName := "my-strategy"
+	PlacementName := "my-placement"
+	ClusterName := "my-cluster"
+
+	It("Check CRDs availability", func() {
+		By("Checking strategy CRD", func() {
+			readerStrategy := idpstrategyoperatorconfig.GetScenarioResourcesReader()
+			_, err := getCRD(readerStrategy, "crd/bases/identityconfig.identitatem.io_strategies.yaml")
+			Expect(err).Should(BeNil())
+		})
+	})
 
 	It("process a Strategy backplane CR", func() {
 		By("creation test namespace", func() {
@@ -301,6 +335,15 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			err := k8sClient.Create(context.TODO(), ns)
 			Expect(err).To(BeNil())
 		})
+		By("Create managedCluster", func() {
+			mc := &clusterv1.ManagedCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ClusterName,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), mc)
+			Expect(err).To(BeNil())
+		})
 		By("Calling reconcile", func() {
 			r := StrategyReconciler{
 				Client: k8sClient,
@@ -315,9 +358,21 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 		By("Checking manifestwork", func() {
-			mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp", metav1.GetOptions{})
+			mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), backplaneManifestWorkName, metav1.GetOptions{})
 			Expect(err).To(BeNil())
 			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(1))
 		})
 	})
 })
+
+func getCRD(reader *clusteradmasset.ScenarioResourcesReader, file string) (*apiextensionsv1.CustomResourceDefinition, error) {
+	b, err := reader.Asset(file)
+	if err != nil {
+		return nil, err
+	}
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(b, crd); err != nil {
+		return nil, err
+	}
+	return crd, nil
+}
