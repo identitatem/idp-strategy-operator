@@ -21,9 +21,6 @@ jobs:
 
     - name: Install kubebuilder
       run: make envtest-tools
-    #   # uses: RyanSiu1995/kubebuilder-action@v1.2
-      # with:
-      #   version: 2.3.0
 
     - name: Functional Tests
       run:  export KUBEBUILDER_ASSETS=$HOME/kubebuilder/bin; make functional-test-full

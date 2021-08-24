@@ -21,6 +21,16 @@ const (
 	backplaneManifestWorkName string = "idp-backplane"
 )
 
+func (r *StrategyReconciler) backplanePlacementStrategy(strategy *identitatemstrategyv1alpha1.Strategy,
+	authrealm *identitatemmgmtv1alpha1.AuthRealm,
+	placement *clusterv1alpha1.Placement,
+	placementStrategy *clusterv1alpha1.Placement) error {
+	// Append any additional predicates the AuthRealm already had on it's Placement
+	placementStrategy.Spec.Predicates = placement.Spec.Predicates
+
+	return nil
+}
+
 //DV
 //backplaneStrategy generates resources for the Backplane strategy
 func (r *StrategyReconciler) backplaneStrategy(strategy *identitatemstrategyv1alpha1.Strategy,

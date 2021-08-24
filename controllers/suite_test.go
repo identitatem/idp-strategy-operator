@@ -192,7 +192,34 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			err := k8sClient.Create(context.TODO(), ns)
 			Expect(err).To(BeNil())
 		})
-		var authRealm = &identitatemmgmtv1alpha1.AuthRealm{}
+		var placement *clusterv1alpha1.Placement
+		By("Creating placement", func() {
+			placement = &clusterv1alpha1.Placement{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      PlacementName,
+					Namespace: AuthRealmNameSpace,
+				},
+				Spec: clusterv1alpha1.PlacementSpec{
+					Predicates: []clusterv1alpha1.ClusterPredicate{
+						{
+							RequiredClusterSelector: clusterv1alpha1.ClusterSelector{
+								LabelSelector: metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"mylabel": "test",
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			var err error
+			placement, err = clientSetCluster.ClusterV1alpha1().Placements(AuthRealmNameSpace).
+				Create(context.TODO(), placement, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+
+		})
+		var authRealm *identitatemmgmtv1alpha1.AuthRealm
 		By("creating a AuthRealm CR", func() {
 			//first create AuthRealm
 			authRealm = &identitatemmgmtv1alpha1.AuthRealm{
@@ -210,22 +237,8 @@ var _ = Describe("Process Strategy backplane: ", func() {
 							GitHub: &openshiftconfigv1.GitHubIdentityProvider{},
 						},
 					},
-					//DV add the placement specification as it will be used to create the final placement
-					Placement: &identitatemmgmtv1alpha1.Placement{
-						Name: PlacementName,
-						Spec: clusterv1alpha1.PlacementSpec{
-							Predicates: []clusterv1alpha1.ClusterPredicate{
-								{
-									RequiredClusterSelector: clusterv1alpha1.ClusterSelector{
-										LabelSelector: metav1.LabelSelector{
-											MatchLabels: map[string]string{
-												"mylabel": "test",
-											},
-										},
-									},
-								},
-							},
-						},
+					PlacementRef: corev1.LocalObjectReference{
+						Name: placement.Name,
 					},
 				},
 			}
@@ -297,19 +310,19 @@ var _ = Describe("Process Strategy backplane: ", func() {
 		//DV Add check on placement
 		By("Checking placement", func() {
 			placement, err := clientSetCluster.ClusterV1alpha1().Placements(AuthRealmNameSpace).
-				Get(context.TODO(), strategy.Spec.PlacementRef.Name, metav1.GetOptions{})
+				Get(context.TODO(), strategy.Spec.PlacementRef.Name+"-backplane", metav1.GetOptions{})
 			Expect(err).To(BeNil())
 			//DV No need as By now
 			// if err != nil {
 			// 	logf.Log.Info("Error while reading authrealm", "Error", err)
 			// 	return err
 			// }
-			Expect(len(placement.Spec.Predicates)).Should(Equal(2))
+			Expect(len(placement.Spec.Predicates)).Should(Equal(1))
 		})
 		By("Create Placement Decision CR", func() {
 			placementDecision := &clusterv1alpha1.PlacementDecision{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strategy.Spec.PlacementRef.Name,
+					Name:      strategy.Spec.PlacementRef.Name + "-backplane",
 					Namespace: AuthRealmNameSpace,
 				},
 			}

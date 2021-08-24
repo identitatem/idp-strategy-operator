@@ -35,6 +35,14 @@ import (
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	workv1 "open-cluster-management.io/api/work/v1"
+
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	idpstrategyoperatorconfig "github.com/identitatem/idp-strategy-operator/config"
+
+	//+kubebuilder:scaffold:imports
+
+	clusteradmapply "open-cluster-management.io/clusteradm/pkg/helpers/apply"
 )
 
 // StrategyReconciler reconciles a Strategy object
@@ -148,69 +156,37 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	//TODO!!! Right now we will have to manullay add a label to managed clusters in order for the placementDecision
 	//        to return a result cloudservices=grc|backplane
 	//Check if there is a predicate to add, if not nothing to do
-	if authrealm.Spec.Placement == nil ||
-		len(authrealm.Spec.Placement.Spec.Predicates) == 0 {
-		return reconcile.Result{}, nil
-	}
 
 	placement := &clusterv1alpha1.Placement{}
-	placementExists := true
-	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: authrealm.Spec.Placement.Name, Namespace: req.Namespace}, placement); err != nil {
-		if !errors.IsNotFound(err) {
+	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: authrealm.Spec.PlacementRef.Name, Namespace: req.Namespace}, placement); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	//Get placementStrategy
+	placementStrategy, placementStrategyExists, err := r.getStrategyPlacement(instance, authrealm, placement)
+
+	//Enrich placementStrategy
+	switch instance.Spec.Type {
+	case identitatemstrategyv1alpha1.BackplaneStrategyType:
+		if err := r.backplanePlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
-		placementExists = false
-		// Not Found! Create
-		placement = &clusterv1alpha1.Placement{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: req.Namespace,
-				//DV The name is given by the authrealm as the user will define the binding with the clusterset
-				//Name:      req.Name,
-				Name: authrealm.Spec.Placement.Name,
-			},
-			//DV move below
-			Spec: clusterv1alpha1.PlacementSpec{
-				Predicates: []clusterv1alpha1.ClusterPredicate{
-					{
-						RequiredClusterSelector: clusterv1alpha1.ClusterSelector{
-							LabelSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"cloudservices": string(instance.Spec.Type),
-								},
-							},
-						},
-					},
-				},
-			},
+	case identitatemstrategyv1alpha1.GrcStrategyType:
+		if err := r.grcPlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
+			return reconcile.Result{}, err
 		}
-		// Set owner reference for cleanup
-		controllerutil.SetOwnerReference(instance, placement, r.Scheme)
+	default:
+		return reconcile.Result{}, fmt.Errorf("strategy type %s not supported", instance.Spec.Type)
 	}
 
-	// Append any additional predicates the AuthRealm already had on it's Placement
-	placement.Spec.Predicates = []clusterv1alpha1.ClusterPredicate{
-		{
-			RequiredClusterSelector: clusterv1alpha1.ClusterSelector{
-				LabelSelector: metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"cloudservices": string(instance.Spec.Type),
-					},
-				},
-			},
-		},
-	}
-
-	placement.Spec.Predicates = append(placement.Spec.Predicates, authrealm.Spec.Placement.Spec.Predicates...)
-
-	switch placementExists {
+	//Create or update placementStrategy
+	switch placementStrategyExists {
 	case true:
-		if err := r.Client.Update(context.TODO(), placement); err != nil {
-			// Error reading the object - requeue the request.
+		if err := r.Client.Update(context.TODO(), placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
 	case false:
-		if err := r.Client.Create(context.Background(), placement); err != nil {
-			// Error reading the object - requeue the request.
+		if err := r.Client.Create(context.Background(), placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -224,7 +200,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	//DV Check if PlacementDecision Available
 	platecementDecision := &clusterv1alpha1.PlacementDecision{}
-	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: instance.Spec.PlacementRef.Name, Namespace: req.Namespace}, platecementDecision)
+	err = r.Client.Get(context.TODO(), client.ObjectKey{Name: getPlacementStrategyName(instance, authrealm), Namespace: req.Namespace}, platecementDecision)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return reconcile.Result{}, err
@@ -303,8 +279,52 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
+func (r *StrategyReconciler) getStrategyPlacement(strategy *identitatemstrategyv1alpha1.Strategy,
+	authrealm *identitatemmgmtv1alpha1.AuthRealm,
+	placement *clusterv1alpha1.Placement) (*clusterv1alpha1.Placement, bool, error) {
+	placementStrategy := &clusterv1alpha1.Placement{}
+	placementStrategyExists := true
+	placementStrategyName := getPlacementStrategyName(strategy, authrealm)
+	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: placementStrategyName, Namespace: strategy.Namespace}, placementStrategy); err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, false, err
+		}
+		placementStrategyExists = false
+		// Not Found! Create
+		placementStrategy = &clusterv1alpha1.Placement{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: strategy.Namespace,
+				//DV The name is given by the authrealm as the user will define the binding with the clusterset
+				//Name:      req.Name,
+				Name: placementStrategyName,
+			},
+			//DV move below
+			Spec: placement.Spec,
+		}
+		// Set owner reference for cleanup
+		controllerutil.SetOwnerReference(strategy, placementStrategy, r.Scheme)
+	}
+	return placementStrategy, placementStrategyExists, nil
+}
+
+func getPlacementStrategyName(strategy *identitatemstrategyv1alpha1.Strategy,
+	authrealm *identitatemmgmtv1alpha1.AuthRealm) string {
+	return fmt.Sprintf("%s-%s", authrealm.Spec.PlacementRef.Name, strategy.Spec.Type)
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	//Install CRD
+	applierBuilder := &clusteradmapply.ApplierBuilder{}
+	applier := applierBuilder.WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).Build()
+
+	readerIDPMgmtOperator := idpstrategyoperatorconfig.GetScenarioResourcesReader()
+
+	file := "crd/bases/identityconfig.identitatem.io_strategies.yaml"
+	if _, err := applier.ApplyDirectly(readerIDPMgmtOperator, nil, false, "", file); err != nil {
+		return err
+	}
+
 	if err := clusterv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
