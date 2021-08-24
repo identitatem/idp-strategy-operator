@@ -3,15 +3,14 @@
 package controllers
 
 import (
-	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
-	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 )
 
-func (r *StrategyReconciler) grcPlacementStrategy(strategy *identitatemstrategyv1alpha1.Strategy,
-	authrealm *identitatemmgmtv1alpha1.AuthRealm,
+func (r *StrategyReconciler) grcPlacementStrategy(strategy *identitatemv1alpha1.Strategy,
+	authrealm *identitatemv1alpha1.AuthRealm,
 	placement *clusterv1alpha1.Placement,
 	placementStrategy *clusterv1alpha1.Placement) error {
 	// Append any additional predicates the AuthRealm already had on it's Placement
@@ -34,7 +33,7 @@ func (r *StrategyReconciler) grcPlacementStrategy(strategy *identitatemstrategyv
 
 //DV
 //grcStrategy generates resources for the GRC strategy
-func (r *StrategyReconciler) grcStrategy(strategy *identitatemstrategyv1alpha1.Strategy,
+func (r *StrategyReconciler) grcStrategy(strategy *identitatemv1alpha1.Strategy,
 	placement *clusterv1alpha1.Placement,
 	placementDecision *clusterv1alpha1.PlacementDecision) error {
 	return nil

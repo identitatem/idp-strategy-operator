@@ -19,14 +19,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/go-logr/logr"
-	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
-	"github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned/scheme"
-	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	"github.com/identitatem/idp-client-api/api/client/clientset/versioned/scheme"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 
 	// identitatemdexserverv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
@@ -38,7 +36,7 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	idpstrategyoperatorconfig "github.com/identitatem/idp-strategy-operator/config"
+	idpconfig "github.com/identitatem/idp-client-api/config"
 
 	//+kubebuilder:scaffold:imports
 
@@ -55,9 +53,12 @@ type StrategyReconciler struct {
 	Scheme             *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources={authrealms,strategies},verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/finalizers,verbs=update
+// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources={customresourcedefinitions},verbs=get;list;create;update;patch;delete
+
+//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={placements,placementdecisions},verbs=get;list;watch;create;update;patch;delete;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -69,11 +70,12 @@ type StrategyReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	_ = context.Background()
+	_ = r.Log.WithValues("strategy", req.NamespacedName)
 
 	// your logic here
 	// Fetch the ManagedCluster instance
-	instance := &identitatemstrategyv1alpha1.Strategy{}
+	instance := &identitatemv1alpha1.Strategy{}
 
 	if err := r.Client.Get(
 		context.TODO(),
@@ -90,7 +92,8 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
-	r.Log.Info("Running Reconcile for Strategy.", "Name: ", instance.Name, " Namespace:", instance.Namespace)
+	r.Log.Info("Instance", "instance", instance)
+	r.Log.Info("Running Reconcile for Strategy.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace())
 
 	//apiVersion: cluster.open-cluster-management.io/v1alpha1
 	//kind: Placement
@@ -119,13 +122,13 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	//					placement, err = clusterClient.ClusterV1alpha1().Placements(namespace).Update(context.Background(), placement, metav1.UpdateOptions{})
 
 	// Get the AuthRealm Placement bits we need to help create a new Placement
-	authrealm := &identitatemmgmtv1alpha1.AuthRealm{}
+	authrealm := &identitatemv1alpha1.AuthRealm{}
 
 	r.Log.Info("Looking for AuthRealm in ownerRefs")
 	// get placement info from AuthRealm ownerRef
 	var ownerRef metav1.OwnerReference
 	//DV not needed
-	// placementInfo := &identitatemmgmtv1alpha1.Placement{}
+	// placementInfo := &identitatemv1alpha1.Placement{}
 
 	//for _, or := range ownerRefs {
 	for _, or := range instance.GetOwnerReferences() {
@@ -167,11 +170,11 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	//Enrich placementStrategy
 	switch instance.Spec.Type {
-	case identitatemstrategyv1alpha1.BackplaneStrategyType:
+	case identitatemv1alpha1.BackplaneStrategyType:
 		if err := r.backplanePlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
-	case identitatemstrategyv1alpha1.GrcStrategyType:
+	case identitatemv1alpha1.GrcStrategyType:
 		if err := r.grcPlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -211,11 +214,11 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	//DV Use switch as it is nicer than if then else
 	switch instance.Spec.Type {
-	case identitatemstrategyv1alpha1.BackplaneStrategyType:
+	case identitatemv1alpha1.BackplaneStrategyType:
 		if err := r.backplaneStrategy(instance, authrealm, placement, platecementDecision); err != nil {
 			return reconcile.Result{}, err
 		}
-	case identitatemstrategyv1alpha1.GrcStrategyType:
+	case identitatemv1alpha1.GrcStrategyType:
 		if err := r.grcStrategy(instance, placement, platecementDecision); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -225,7 +228,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Check StrategyType
 	//Backplane/Multi cluster engine for Kubernetes
-	// if instance.Spec.Type == identitatemstrategyv1alpha1.BackplaneStrategyType {
+	// if instance.Spec.Type == identitatemv1alpha1.BackplaneStrategyType {
 	// 	r.Log.Info("Instance", "Type", instance.Spec.Type)
 
 	// create placement with backplane filters/predicates
@@ -234,7 +237,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// need to wait for PlacementDecision to trigger next step
 
 	// GRC available - Advanced Cluster Management
-	// } else if instance.Spec.Type == identitatemstrategyv1alpha1.GrcStrategyType {
+	// } else if instance.Spec.Type == identitatemv1alpha1.GrcStrategyType {
 
 	// 	r.Log.Info("Instance", "Type", instance.Spec.Type)
 	//		if instance.Status.Conditions == nil {
@@ -279,8 +282,8 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *StrategyReconciler) getStrategyPlacement(strategy *identitatemstrategyv1alpha1.Strategy,
-	authrealm *identitatemmgmtv1alpha1.AuthRealm,
+func (r *StrategyReconciler) getStrategyPlacement(strategy *identitatemv1alpha1.Strategy,
+	authrealm *identitatemv1alpha1.AuthRealm,
 	placement *clusterv1alpha1.Placement) (*clusterv1alpha1.Placement, bool, error) {
 	placementStrategy := &clusterv1alpha1.Placement{}
 	placementStrategyExists := true
@@ -307,8 +310,8 @@ func (r *StrategyReconciler) getStrategyPlacement(strategy *identitatemstrategyv
 	return placementStrategy, placementStrategyExists, nil
 }
 
-func getPlacementStrategyName(strategy *identitatemstrategyv1alpha1.Strategy,
-	authrealm *identitatemmgmtv1alpha1.AuthRealm) string {
+func getPlacementStrategyName(strategy *identitatemv1alpha1.Strategy,
+	authrealm *identitatemv1alpha1.AuthRealm) string {
 	return fmt.Sprintf("%s-%s", authrealm.Spec.PlacementRef.Name, strategy.Spec.Type)
 }
 
@@ -318,10 +321,14 @@ func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	applierBuilder := &clusteradmapply.ApplierBuilder{}
 	applier := applierBuilder.WithClient(r.KubeClient, r.APIExtensionClient, r.DynamicClient).Build()
 
-	readerIDPMgmtOperator := idpstrategyoperatorconfig.GetScenarioResourcesReader()
+	readerIDPMgmtOperator := idpconfig.GetScenarioResourcesReader()
 
 	file := "crd/bases/identityconfig.identitatem.io_strategies.yaml"
 	if _, err := applier.ApplyDirectly(readerIDPMgmtOperator, nil, false, "", file); err != nil {
+		return err
+	}
+
+	if err := identitatemv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
@@ -346,7 +353,7 @@ func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&identitatemstrategyv1alpha1.Strategy{}).
+		For(&identitatemv1alpha1.Strategy{}).
 		Owns(&clusterv1alpha1.Placement{}).
 		Watches(&source.Kind{Type: &clusterv1alpha1.PlacementDecision{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
@@ -362,7 +369,7 @@ func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return []ctrl.Request{}
 				}
 				//Search the strategies for that placement
-				strategies := &identitatemstrategyv1alpha1.StrategyList{}
+				strategies := &identitatemv1alpha1.StrategyList{}
 				err = r.Client.List(context.TODO(), strategies, client.MatchingFields{
 					"spec.placementRef.name": placement.Name,
 				}, &client.ListOptions{Namespace: o.GetNamespace()})

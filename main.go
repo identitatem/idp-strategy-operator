@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	identitatemiov1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	identitatemiov1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 	"github.com/identitatem/idp-strategy-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -73,6 +73,7 @@ func main() {
 		DynamicClient:      dynamic.NewForConfigOrDie(ctrl.GetConfigOrDie()),
 		APIExtensionClient: apiextensionsclient.NewForConfigOrDie(ctrl.GetConfigOrDie()),
 		Scheme:             mgr.GetScheme(),
+		Log:                ctrl.Log.WithName("controllers").WithName("Strategy"),
 	}
 
 	if err = r.SetupWithManager(mgr); err != nil {

@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	identitatemclientset "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
-	identitatemv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
+	identitatemclientset "github.com/identitatem/idp-client-api/api/client/clientset/versioned"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +45,7 @@ var _ = Describe("Strategy", func() {
 			home := homedir.HomeDir()
 			kubeConfigFile = filepath.Join(home, ".kube", "config")
 		}
+		klog.Infof("KUBECONFIG=%s", kubeConfigFile)
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeConfigFile)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cfg).ToNot(BeNil())
@@ -61,7 +62,7 @@ var _ = Describe("Strategy", func() {
 		namespace := "default"
 
 		By("Create a Backplane Strategy", func() {
-			strategy := identitatemv1alpha1.Strategy{
+			strategy := &identitatemv1alpha1.Strategy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      name,
 					Namespace: namespace,
@@ -70,7 +71,7 @@ var _ = Describe("Strategy", func() {
 					Type: identitatemv1alpha1.BackplaneStrategyType,
 				},
 			}
-			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Create(context.TODO(), &strategy, metav1.CreateOptions{})
+			_, err := identitattemClientSet.IdentityconfigV1alpha1().Strategies(namespace).Create(context.TODO(), strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
 		Eventually(func() error {

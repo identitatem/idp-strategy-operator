@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 
 	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 
@@ -61,7 +61,7 @@ func (r *StrategyReconciler) addOAuth(dclusterName string, mw *workv1.ManifestWo
 	return nil
 }
 
-func (r *StrategyReconciler) createDexClient(authrealm *identitatemmgmtv1alpha1.AuthRealm, clusterName string, clientSecret *corev1.Secret) error {
+func (r *StrategyReconciler) createDexClient(authrealm *identitatemv1alpha1.AuthRealm, clusterName string, clientSecret *corev1.Secret) error {
 	dexClientExists := true
 	dexClient := &identitatemdexv1alpha1.DexClient{}
 	if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterName, Namespace: authrealm.Name}, dexClient); err != nil {

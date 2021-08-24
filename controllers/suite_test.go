@@ -34,12 +34,9 @@ import (
 
 	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
 	dexoperatorconfig "github.com/identitatem/dex-operator/config"
-	clientsetmgmt "github.com/identitatem/idp-mgmt-operator/api/client/clientset/versioned"
-	identitatemmgmtv1alpha1 "github.com/identitatem/idp-mgmt-operator/api/identitatem/v1alpha1"
-	idpmgmtoperatorconfig "github.com/identitatem/idp-mgmt-operator/config"
-	clientsetstrategy "github.com/identitatem/idp-strategy-operator/api/client/clientset/versioned"
-	identitatemstrategyv1alpha1 "github.com/identitatem/idp-strategy-operator/api/identitatem/v1alpha1"
-	idpstrategyoperatorconfig "github.com/identitatem/idp-strategy-operator/config"
+	idpclientset "github.com/identitatem/idp-client-api/api/client/clientset/versioned"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
+	idpconfig "github.com/identitatem/idp-client-api/config"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
 )
 
@@ -47,8 +44,8 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var cfg *rest.Config
-var clientSetMgmt *clientsetmgmt.Clientset
-var clientSetStrategy *clientsetstrategy.Clientset
+var clientSetMgmt *idpclientset.Clientset
+var clientSetStrategy *idpclientset.Clientset
 var clientSetCluster *clientsetcluster.Clientset
 var clientSetWork *clientsetwork.Clientset
 var k8sClient client.Client
@@ -65,8 +62,11 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	readerMgmt := idpmgmtoperatorconfig.GetScenarioResourcesReader()
-	authrealmCRD, err := getCRD(readerMgmt, "crd/bases/identityconfig.identitatem.io_authrealms.yaml")
+	readerIDP := idpconfig.GetScenarioResourcesReader()
+	strategyCRD, err := getCRD(readerIDP, "crd/bases/identityconfig.identitatem.io_strategies.yaml")
+	Expect(err).Should(BeNil())
+
+	authrealmCRD, err := getCRD(readerIDP, "crd/bases/identityconfig.identitatem.io_authrealms.yaml")
 	Expect(err).Should(BeNil())
 
 	readerDex := dexoperatorconfig.GetScenarioResourcesReader()
@@ -79,12 +79,12 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDs: []client.Object{
+			strategyCRD,
 			authrealmCRD,
 			dexClientCRD,
 			dexServerCRD,
 		},
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "config", "crd", "bases"),
 			//DV added this line and copyed the authrealms CRD
 			filepath.Join("..", "test", "config", "crd", "external"),
 		},
@@ -94,10 +94,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = identitatemstrategyv1alpha1.AddToScheme(scheme.Scheme)
+	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = identitatemmgmtv1alpha1.AddToScheme(scheme.Scheme)
+	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = identitatemdexv1alpha1.AddToScheme(scheme.Scheme)
@@ -115,11 +115,11 @@ var _ = BeforeSuite(func() {
 	err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	clientSetMgmt, err = clientsetmgmt.NewForConfig(cfg)
+	clientSetMgmt, err = idpclientset.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clientSetMgmt).ToNot(BeNil())
 
-	clientSetStrategy, err = clientsetstrategy.NewForConfig(cfg)
+	clientSetStrategy, err = idpclientset.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clientSetStrategy).ToNot(BeNil())
 
@@ -164,14 +164,6 @@ var _ = Describe("Process Strategy backplane: ", func() {
 	StrategyName := "my-strategy"
 	PlacementName := "my-placement"
 	ClusterName := "my-cluster"
-
-	It("Check CRDs availability", func() {
-		By("Checking strategy CRD", func() {
-			readerStrategy := idpstrategyoperatorconfig.GetScenarioResourcesReader()
-			_, err := getCRD(readerStrategy, "crd/bases/identityconfig.identitatem.io_strategies.yaml")
-			Expect(err).Should(BeNil())
-		})
-	})
 
 	It("process a Strategy backplane CR", func() {
 		By("creation test namespace", func() {
@@ -219,22 +211,24 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 
 		})
-		var authRealm *identitatemmgmtv1alpha1.AuthRealm
+		var authRealm *identitatemv1alpha1.AuthRealm
 		By("creating a AuthRealm CR", func() {
 			//first create AuthRealm
-			authRealm = &identitatemmgmtv1alpha1.AuthRealm{
+			authRealm = &identitatemv1alpha1.AuthRealm{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      AuthRealmName,
 					Namespace: AuthRealmNameSpace,
 				},
-				Spec: identitatemmgmtv1alpha1.AuthRealmSpec{
-					Type: identitatemmgmtv1alpha1.AuthProxyDex,
+				Spec: identitatemv1alpha1.AuthRealmSpec{
+					Type: identitatemv1alpha1.AuthProxyDex,
 					CertificatesSecretRef: corev1.LocalObjectReference{
 						Name: CertificatesSecretRef,
 					},
-					IdentityProviders: []identitatemmgmtv1alpha1.IdentityProvider{
+					IdentityProviders: []openshiftconfigv1.IdentityProvider{
 						{
-							GitHub: &openshiftconfigv1.GitHubIdentityProvider{},
+							IdentityProviderConfig: openshiftconfigv1.IdentityProviderConfig{
+								GitHub: &openshiftconfigv1.GitHubIdentityProvider{},
+							},
 						},
 					},
 					PlacementRef: corev1.LocalObjectReference{
@@ -248,7 +242,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 		By("creating a Strategy CR", func() {
-			strategy := &identitatemstrategyv1alpha1.Strategy{
+			strategy := &identitatemv1alpha1.Strategy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      StrategyName,
 					Namespace: AuthRealmNameSpace,
@@ -259,8 +253,8 @@ var _ = Describe("Process Strategy backplane: ", func() {
 					// 	},
 					// },
 				},
-				Spec: identitatemstrategyv1alpha1.StrategySpec{
-					Type: identitatemstrategyv1alpha1.BackplaneStrategyType,
+				Spec: identitatemv1alpha1.StrategySpec{
+					Type: identitatemv1alpha1.BackplaneStrategyType,
 				},
 			}
 
@@ -295,7 +289,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(result.Requeue).To(BeTrue())
 			Expect(result.RequeueAfter).To(Equal(time.Second * 10))
 		})
-		var strategy *identitatemstrategyv1alpha1.Strategy
+		var strategy *identitatemv1alpha1.Strategy
 		By("Checking strategy", func() {
 			var err error
 			strategy, err = clientSetStrategy.IdentityconfigV1alpha1().Strategies(AuthRealmNameSpace).Get(context.TODO(), StrategyName, metav1.GetOptions{})
