@@ -1,11 +1,10 @@
 // Copyright Red Hat
 
-package controllers
+package strategy
 
 import (
 	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 )
 
@@ -28,13 +27,5 @@ func (r *StrategyReconciler) grcPlacementStrategy(strategy *identitatemv1alpha1.
 
 	placementStrategy.Spec.Predicates = append(placementStrategy.Spec.Predicates, placement.Spec.Predicates...)
 
-	return nil
-}
-
-//DV
-//grcStrategy generates resources for the GRC strategy
-func (r *StrategyReconciler) grcStrategy(strategy *identitatemv1alpha1.Strategy,
-	placement *clusterv1alpha1.Placement,
-	placementDecision *clusterv1alpha1.PlacementDecision) error {
 	return nil
 }

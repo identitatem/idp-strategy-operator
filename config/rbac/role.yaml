@@ -18,10 +18,36 @@ rules:
   - patch
   - update
 - apiGroups:
+  - auth.identitatem.io
+  resources:
+  - dexclients
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - cluster.open-cluster-management.io
   resources:
   - placementdecisions
   - placements
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - identityconfig.identitatem.io
+  resources:
+  - authrealms
+  - clusteroauths
+  - strategies
   verbs:
   - create
   - delete

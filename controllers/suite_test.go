@@ -6,7 +6,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/ghodss/yaml"
 
@@ -25,19 +24,21 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
+	dexoperatorconfig "github.com/identitatem/dex-operator/config"
+	idpclientset "github.com/identitatem/idp-client-api/api/client/clientset/versioned"
+	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
+	idpconfig "github.com/identitatem/idp-client-api/config"
 	openshiftconfigv1 "github.com/openshift/api/config/v1"
 	clientsetcluster "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clientsetwork "open-cluster-management.io/api/client/work/clientset/versioned"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	workv1 "open-cluster-management.io/api/work/v1"
-
-	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
-	dexoperatorconfig "github.com/identitatem/dex-operator/config"
-	idpclientset "github.com/identitatem/idp-client-api/api/client/clientset/versioned"
-	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
-	idpconfig "github.com/identitatem/idp-client-api/config"
 	clusteradmasset "open-cluster-management.io/clusteradm/pkg/helpers/asset"
+
+	"github.com/identitatem/idp-strategy-operator/controllers/placementdecision"
+	"github.com/identitatem/idp-strategy-operator/controllers/strategy"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -90,13 +91,6 @@ var _ = BeforeSuite(func() {
 		},
 		ErrorIfCRDPathMissing: true,
 	}
-	cfg, err = testEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
-
-	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -114,6 +108,10 @@ var _ = BeforeSuite(func() {
 
 	err = openshiftconfigv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	cfg, err = testEnv.Start()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(cfg).NotTo(BeNil())
 
 	clientSetMgmt, err = idpclientset.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
@@ -159,10 +157,11 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Process Strategy backplane: ", func() {
 	AuthRealmName := "my-authrealm"
-	AuthRealmNameSpace := "my-autherealmns"
+	AuthRealmNameSpace := "my-authrealmns"
 	CertificatesSecretRef := "my-certs"
-	StrategyName := "my-strategy"
-	PlacementName := "my-placement"
+	StrategyName := AuthRealmName + "-backplane"
+	PlacementStrategyName := StrategyName
+	PlacementName := AuthRealmName
 	ClusterName := "my-cluster"
 
 	It("process a Strategy backplane CR", func() {
@@ -213,7 +212,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 		})
 		var authRealm *identitatemv1alpha1.AuthRealm
 		By("creating a AuthRealm CR", func() {
-			//first create AuthRealm
+			var err error
 			authRealm = &identitatemv1alpha1.AuthRealm{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      AuthRealmName,
@@ -226,8 +225,13 @@ var _ = Describe("Process Strategy backplane: ", func() {
 					},
 					IdentityProviders: []openshiftconfigv1.IdentityProvider{
 						{
+							Name:          "example.com",
+							MappingMethod: openshiftconfigv1.MappingMethodClaim,
 							IdentityProviderConfig: openshiftconfigv1.IdentityProviderConfig{
-								GitHub: &openshiftconfigv1.GitHubIdentityProvider{},
+								Type: openshiftconfigv1.IdentityProviderTypeGitHub,
+								GitHub: &openshiftconfigv1.GitHubIdentityProvider{
+									ClientID: "me",
+								},
 							},
 						},
 					},
@@ -237,7 +241,6 @@ var _ = Describe("Process Strategy backplane: ", func() {
 				},
 			}
 			//DV reassign  to authRealm to get the extra info that kube set (ie:uuid as needed to set ownerref)
-			var err error
 			authRealm, err = clientSetMgmt.IdentityconfigV1alpha1().AuthRealms(AuthRealmNameSpace).Create(context.TODO(), authRealm, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
@@ -246,12 +249,6 @@ var _ = Describe("Process Strategy backplane: ", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      StrategyName,
 					Namespace: AuthRealmNameSpace,
-					//DV Commented
-					// OwnerReferences: []metav1.OwnerReference{
-					// 	{
-					// 		Name: AuthRealmName,
-					// 	},
-					// },
 				},
 				Spec: identitatemv1alpha1.StrategySpec{
 					Type: identitatemv1alpha1.BackplaneStrategyType,
@@ -274,7 +271,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 		})
 		//DV replace Eventually by By as no need for waiting as it is a method call.... my bad.
 		By("Calling reconcile", func() {
-			r := StrategyReconciler{
+			r := strategy.StrategyReconciler{
 				Client: k8sClient,
 				Log:    logf.Log,
 				Scheme: scheme.Scheme,
@@ -283,11 +280,8 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			req := ctrl.Request{}
 			req.Name = StrategyName
 			req.Namespace = AuthRealmNameSpace
-			result, err := r.Reconcile(context.TODO(), req)
+			_, err := r.Reconcile(context.TODO(), req)
 			Expect(err).To(BeNil())
-			//DV Should be requeued as we wait for the PlacementDecision
-			Expect(result.Requeue).To(BeTrue())
-			Expect(result.RequeueAfter).To(Equal(time.Second * 10))
 		})
 		var strategy *identitatemv1alpha1.Strategy
 		By("Checking strategy", func() {
@@ -299,12 +293,12 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			// 	logf.Log.Info("Error while reading authrealm", "Error", err)
 			// 	return err
 			// }
-			Expect(strategy.Spec.PlacementRef.Name).Should(Equal(PlacementName))
+			Expect(strategy.Spec.PlacementRef.Name).Should(Equal(PlacementStrategyName))
 		})
 		//DV Add check on placement
 		By("Checking placement", func() {
 			placement, err := clientSetCluster.ClusterV1alpha1().Placements(AuthRealmNameSpace).
-				Get(context.TODO(), strategy.Spec.PlacementRef.Name+"-backplane", metav1.GetOptions{})
+				Get(context.TODO(), PlacementName, metav1.GetOptions{})
 			Expect(err).To(BeNil())
 			//DV No need as By now
 			// if err != nil {
@@ -316,7 +310,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 		By("Create Placement Decision CR", func() {
 			placementDecision := &clusterv1alpha1.PlacementDecision{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      strategy.Spec.PlacementRef.Name + "-backplane",
+					Name:      StrategyName,
 					Namespace: AuthRealmNameSpace,
 				},
 			}
@@ -352,22 +346,45 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 		By("Calling reconcile", func() {
-			r := StrategyReconciler{
+			r := &placementdecision.PlacementDecisionReconciler{
 				Client: k8sClient,
 				Log:    logf.Log,
 				Scheme: scheme.Scheme,
 			}
 
+			// mgr, err := ctrl.NewManager(testEnv.Config, ctrl.Options{
+			// 	Scheme:                 scheme.Scheme,
+			// 	MetricsBindAddress:     ":8081",
+			// 	Port:                   9443,
+			// 	HealthProbeBindAddress: ":8082",
+			// 	// LeaderElection:         enableLeaderElection,
+			// 	LeaderElectionID: "cc3e3fdf.identitatem.io",
+			// })
+
+			// Expect(err).To(BeNil())
+			// err = mgr.GetFieldIndexer().IndexField(context.TODO(), &identitatemv1alpha1.Strategy{}, "spec.placementRef.name",
+			// 	func(rawObj client.Object) []string {
+			// 		obj := rawObj.(*identitatemv1alpha1.Strategy)
+			// 		if obj == nil {
+			// 			return nil
+			// 		}
+			// 		return []string{obj.Spec.PlacementRef.Name}
+			// 	})
+
+			// Expect(err).To(BeNil())
+			// c, err := ctrl.NewControllerManagedBy(mgr).For(&clusterv1alpha1.PlacementDecision{}).Build(r)
+			// Expect(err).To(BeNil())
 			req := ctrl.Request{}
-			req.Name = StrategyName
+			req.Name = strategy.Spec.PlacementRef.Name
 			req.Namespace = AuthRealmNameSpace
+			// _, err = c.Reconcile(context.TODO(), req)
 			_, err := r.Reconcile(context.TODO(), req)
 			Expect(err).To(BeNil())
 		})
 		By("Checking manifestwork", func() {
-			mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), backplaneManifestWorkName, metav1.GetOptions{})
+			_, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), placementdecision.BackplaneManifestWorkName, metav1.GetOptions{})
 			Expect(err).To(BeNil())
-			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(1))
+			// Expect(len(mw.Spec.Workload.Manifests)).To(Equal(1))
 		})
 	})
 })
