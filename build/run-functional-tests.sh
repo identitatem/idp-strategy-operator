@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
 # Copyright (c) Red Hat, Inc.
-# Copyright Contributors to the Open Cluster Management project
+# Copyright Red Hat
 ###############################################################################
 
 set -e
@@ -83,14 +83,18 @@ API_SERVER_URL=$(cat ${KIND_KUBECONFIG_INTERNAL}| grep "server:" |cut -d ":" -f2
 kind load docker-image ${DOCKER_IMAGE_AND_TAG} --name=${CLUSTER_NAME} -v 99 || echo "failed to load image locally, will use imagePullSecret"
 
 echo "install cluster"
+make functional-test-crds
 make deploy-coverage
+echo "Wait deployment stabilize"
+sleep 10
+echo "Launch functional-test"
 make functional-test
-
+# exit 1
 echo "Wait 10 sec to let coverage to flush"
 sleep 10
 
 echo "remove deployment"
-kubectl delete deployment idp-strategy-operator-controller-manager -n identitatem
+make undeploy
 
 echo "Wait 10 sec for copy to AWS"
 sleep 10
