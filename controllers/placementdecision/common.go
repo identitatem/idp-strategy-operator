@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,6 +79,25 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 	for _, decision := range placementDecision.Status.Decisions {
 		for _, idp := range authrealm.Spec.IdentityProviders {
 			clusterName := decision.ClusterName
+			clientSecret := &corev1.Secret{}
+			if err := r.Get(context.TODO(), client.ObjectKey{Name: idp.Name, Namespace: clusterName}, clientSecret); err != nil {
+				if !errors.IsNotFound(err) {
+					return err
+				}
+				clientSecret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      idp.Name,
+						Namespace: clusterName,
+					},
+					Data: map[string][]byte{
+						"client-id":     []byte(clusterName),
+						"client-secret": []byte(helpers.RandStringRunes(32)),
+					},
+				}
+				if err := r.Create(context.TODO(), clientSecret); err != nil {
+					return err
+				}
+			}
 			dexClientExists := true
 			dexClient := &identitatemdexv1alpha1.DexClient{}
 			if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterName, Namespace: authrealm.Name}, dexClient); err != nil {
@@ -97,8 +117,8 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 				}
 			}
 
-			dexClient.Spec.ClientID = string([]byte(clusterName))
-			dexClient.Spec.ClientSecret = string([]byte(helpers.RandStringRunes(32)))
+			dexClient.Spec.ClientID = string(clientSecret.Data["client-id"])
+			dexClient.Spec.ClientSecret = string(clientSecret.Data["client-secret"])
 
 			apiServerURL, err := helpers.GetKubeAPIServerAddress(r.Client)
 			if err != nil {
