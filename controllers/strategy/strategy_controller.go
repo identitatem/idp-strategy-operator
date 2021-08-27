@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/identitatem/idp-client-api/api/client/clientset/versioned/scheme"
 	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 
 	// identitatemdexserverv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
@@ -62,7 +61,7 @@ type StrategyReconciler struct {
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources={customresourcedefinitions},verbs=get;list;create;update;patch;delete
 
-//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={placements,placementdecisions},verbs=get;list;watch;create;update;patch;delete;watch
+//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={placements},verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -130,10 +129,10 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if err := r.backplanePlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
 			return reconcile.Result{}, err
 		}
-	case identitatemv1alpha1.GrcStrategyType:
-		if err := r.grcPlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
-			return reconcile.Result{}, err
-		}
+	// case identitatemv1alpha1.GrcStrategyType:
+	// 	if err := r.grcPlacementStrategy(instance, authrealm, placement, placementStrategy); err != nil {
+	// 		return reconcile.Result{}, err
+	// 	}
 	default:
 		return reconcile.Result{}, fmt.Errorf("strategy type %s not supported", instance.Spec.Type)
 	}
@@ -226,11 +225,11 @@ func (r *StrategyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := identitatemdexv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+	if err := identitatemdexv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
-	if err := ocinfrav1.AddToScheme(scheme.Scheme); err != nil {
+	if err := ocinfrav1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 

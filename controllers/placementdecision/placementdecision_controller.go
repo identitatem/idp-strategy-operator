@@ -5,8 +5,11 @@ package placementdecision
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ocinfrav1 "github.com/openshift/api/config/v1"
+	// corev1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,14 +22,9 @@ import (
 
 	"github.com/go-logr/logr"
 	dexoperatorv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
-	"github.com/identitatem/idp-client-api/api/client/clientset/versioned/scheme"
 	identitatemv1alpha1 "github.com/identitatem/idp-client-api/api/identitatem/v1alpha1"
 	"github.com/identitatem/idp-strategy-operator/controllers/helpers"
 
-	// identitatemdexserverv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
-	identitatemdexv1alpha1 "github.com/identitatem/dex-operator/api/v1alpha1"
-
-	//ocm "github.com/open-cluster-management-io/api/cluster/v1alpha1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -45,13 +43,16 @@ type PlacementDecisionReconciler struct {
 	Scheme             *runtime.Scheme
 }
 
+// +kubebuilder:rbac:groups="",resources={namespaces,secrets},verbs=get;list;watch;create;update;patch;delete
+
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources={authrealms,strategies},verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources=strategies/finalizers,verbs=update
 //+kubebuilder:rbac:groups=auth.identitatem.io,resources={dexclients},verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources={customresourcedefinitions},verbs=get;list;create;update;patch;delete
 
-//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={placements,placementdecisions},verbs=get;list;watch;create;update;patch;delete;watch
+//+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={managedclusters,placements,placementdecisions},verbs=get;list;watch;create;update;patch;delete;watch
+//+kubebuilder:rbac:groups=config.openshift.io,resources={infrastructures},verbs=get;list;watch;create;update;patch;delete;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -112,13 +113,19 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	switch strategy.Spec.Type {
 	case identitatemv1alpha1.BackplaneStrategyType:
+		//check if dex server installed
+		ns := &corev1.Namespace{}
+		if err := r.Get(context.TODO(), client.ObjectKey{Name: authrealm.Name}, ns); err != nil {
+			return reconcile.Result{Requeue: true, RequeueAfter: 10 * time.Second}, err
+		}
+
 		if err := r.backplaneStrategy(authrealm, placement, instance); err != nil {
 			return reconcile.Result{}, err
 		}
-	case identitatemv1alpha1.GrcStrategyType:
-		if err := r.grcStrategy(placement, instance); err != nil {
-			return reconcile.Result{}, err
-		}
+	// case identitatemv1alpha1.GrcStrategyType:
+	// 	if err := r.grcStrategy(placement, instance); err != nil {
+	// 		return reconcile.Result{}, err
+	// 	}
 	default:
 		return reconcile.Result{}, fmt.Errorf("strategy type %s not supported", strategy.Spec.Type)
 	}
@@ -149,11 +156,7 @@ func (r *PlacementDecisionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := identitatemdexv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		return err
-	}
-
-	if err := ocinfrav1.AddToScheme(scheme.Scheme); err != nil {
+	if err := ocinfrav1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
