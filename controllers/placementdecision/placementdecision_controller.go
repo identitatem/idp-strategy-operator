@@ -111,6 +111,8 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
+	r.Log.Info("Strategy: ", "Name: ", strategy.GetName(), " Namespace:", strategy.GetNamespace(), " Type:", strategy.Spec.Type)
+
 	switch strategy.Spec.Type {
 	case identitatemv1alpha1.BackplaneStrategyType:
 		//check if dex server installed
