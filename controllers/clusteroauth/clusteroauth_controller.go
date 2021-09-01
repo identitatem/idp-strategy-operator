@@ -102,86 +102,103 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	r.Log.Info("Instance", "instance", instance)
 	r.Log.Info("Running Reconcile for ClusterOAuth.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace(), " Type:", instance.Spec.Type)
 
-	switch instance.Spec.Type {
-	case identitatemv1alpha1.BackplaneStrategyType:
+	//TODO   - I think this only applies to backplane so no need to check
+	//switch instance.Spec.Type {
+	//case identitatemv1alpha1.BackplaneStrategyType:
 
-		// Create empty manifest work
-		manifestWork := &manifestworkv1.ManifestWork{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      instance.GetName(),
-				Namespace: instance.GetNamespace(),
+	// Create empty manifest work
+	manifestWork := &manifestworkv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "idp-backplane",
+			Namespace: instance.GetNamespace(),
+		},
+		Spec: manifestworkv1.ManifestWorkSpec{
+			Workload: manifestworkv1.ManifestsTemplate{
+				Manifests: []manifestworkv1.Manifest{},
 			},
-			Spec: manifestworkv1.ManifestWorkSpec{
-				Workload: manifestworkv1.ManifestsTemplate{
-					Manifests: []manifestworkv1.Manifest{},
-				},
-			},
-		}
-
-		secret := &corev1.Secret{}
-		if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: req.Name}, secret); err != nil {
-			if errors.IsNotFound(err) {
-				// Request object not found, could have been deleted after reconcile request.
-				// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-				// Return and don't requeue
-				return reconcile.Result{}, nil
-			}
-			// Error reading the object - requeue the request.
-			return reconcile.Result{}, err
-		}
-		//add secret to manifest
-		manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
-
-		//add manifest to manifest work
-		manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
-
-		// // Get secrets
-		// secrets := &corev1.SecretList{}
-		// //TODO Secret must be filtered to a smaller subset!
-		// if err := r.List(context.TODO(), secrets, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
-		// 	return nil, err
-		// }
-		// for _, secret := range secrets.Items {
-		// 	//add secret to manifest
-		// 	manifest := workv1.Manifest{RawExtension: runtime.RawExtension{Object: &secret}}
-
-		// 	//add manifest to manifest work
-		// 	manifestwork.Spec.Workload.Manifests = append(manifestwork.Spec.Workload.Manifests, manifest)
-		// }
-
-		//manifest = manifestworkv1.Manifest{}
-		// Get a list of all clusterOAuth
-		clusterOAuths := &identitatemv1alpha1.ClusterOAuthList{}
-		singleOAuth := &openshiftconfigv1.OAuth{}
-		if err := r.List(context.TODO(), clusterOAuths, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
-			// Error reading the object - requeue the request.
-			return reconcile.Result{}, err
-		}
-		for _, clusterOAuth := range clusterOAuths.Items {
-			//build OAuth and add to manifest work
-			r.Log.Info("ClusterOAuth.", "Name: ", clusterOAuth.GetName(), " Namespace:", instance.GetNamespace())
-
-			//build oauth by appending  first clusterOAuth entry into single OAuth
-			singleOAuth.Spec.IdentityProviders = append(singleOAuth.Spec.IdentityProviders, clusterOAuth.Spec.OAuth.Spec.IdentityProviders[0])
-		}
-
-		// create manifest for single OAuth
-		manifest = manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
-
-		//add OAuth manifest to manifest work
-		manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
-
-		// create manifest work for managed cluster
-		// (borrowed from https://github.com/open-cluster-management/endpoint-operator/blob/master/pkg/utils/utils.go)
-		if err := CreateOrUpdateManifestWork(manifestWork, r.Client, manifestWork, r.Scheme); err != nil {
-			r.Log.Error(err, "Failed to create manifest work for component")
-			// Error reading the object - requeue the request.
-			return reconcile.Result{}, err
-		}
-
-		//case identitatemv1alpha1..GRCStrategyType:
-
+		},
 	}
+
+	// // Get the secret   TODO Is this one secret per IDP?
+	// secret := &corev1.Secret{}
+	// if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: req.Name}, secret); err != nil {
+	// 	if errors.IsNotFound(err) {
+	// 		// Request object not found, could have been deleted after reconcile request.
+	// 		// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+	// 		// Return and don't requeue
+	// 		return reconcile.Result{}, nil
+	// 	}
+	// 	// Error reading the object - requeue the request.
+	// 	return reconcile.Result{}, err
+	// }
+
+	// //add secret to manifest
+	// manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+
+	// //add manifest to manifest work
+	// manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
+
+	// // Get secrets
+	// secrets := &corev1.SecretList{}
+	// //TODO Secret must be filtered to a smaller subset!
+	// if err := r.List(context.TODO(), secrets, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
+	// 	return nil, err
+	// }
+	// for _, secret := range secrets.Items {
+	// 	//add secret to manifest
+	// 	manifest := workv1.Manifest{RawExtension: runtime.RawExtension{Object: &secret}}
+
+	// 	//add manifest to manifest work
+	// 	manifestwork.Spec.Workload.Manifests = append(manifestwork.Spec.Workload.Manifests, manifest)
+	// }
+
+	// Get a list of all clusterOAuth
+	clusterOAuths := &identitatemv1alpha1.ClusterOAuthList{}
+	singleOAuth := &openshiftconfigv1.OAuth{}
+	if err := r.List(context.TODO(), clusterOAuths, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	for _, clusterOAuth := range clusterOAuths.Items {
+		//build OAuth and add to manifest work
+		r.Log.Info("ClusterOAuth.", "Name: ", clusterOAuth.GetName(), " Namespace:", instance.GetNamespace())
+
+		//build oauth by appending first clusterOAuth entry into single OAuth
+		singleOAuth.Spec.IdentityProviders = append(singleOAuth.Spec.IdentityProviders, clusterOAuth.Spec.OAuth.Spec.IdentityProviders[0])
+
+		//Look for secret for Identity Provider and if found, add to manifest work
+		secret := &corev1.Secret{}
+
+		if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: clusterOAuth.Spec.OAuth.Spec.IdentityProviders[0].Name}, secret); err == nil {
+			//add secret to manifest
+			manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+
+			//add manifest to manifest work
+			manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
+
+		}
+	}
+
+	// create manifest for single OAuth
+	manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
+
+	//add OAuth manifest to manifest work
+	manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
+
+	// create manifest work for managed cluster
+	// (borrowed from https://github.com/open-cluster-management/endpoint-operator/blob/master/pkg/utils/utils.go)
+	if err := CreateOrUpdateManifestWork(manifestWork, r.Client, manifestWork, r.Scheme); err != nil {
+		r.Log.Error(err, "Failed to create manifest work for component")
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	//case identitatemv1alpha1..GRCStrategyType:
+	//default:
+	//	return reconcile.Result{}, fmt.Errorf("strategy type %s not supported", instance.Spec.Type)
+	//
+	//}
 	return ctrl.Result{}, nil
 }
 
