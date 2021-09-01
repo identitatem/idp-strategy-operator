@@ -164,25 +164,32 @@ var _ = Describe("Strategy", func() {
 			Expect(err).To(BeNil())
 		})
 
+		var placementDecision *clusterv1alpha1.PlacementDecision
 		By("Create Placement Decision CR", func() {
-			placementDecision := &clusterv1alpha1.PlacementDecision{
+			placementDecision = &clusterv1alpha1.PlacementDecision{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      StrategyName,
 					Namespace: AuthRealmNameSpace,
 				},
 			}
-			placementDecision, err := clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
+			var err error
+			placementDecision, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
 				Create(context.TODO(), placementDecision, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 
-			placementDecision.Status.Decisions = []clusterv1alpha1.ClusterDecision{
-				{
-					ClusterName: ClusterName,
-				},
-			}
-			_, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
-				UpdateStatus(context.TODO(), placementDecision, metav1.UpdateOptions{})
-			Expect(err).To(BeNil())
+			Eventually(func() error {
+				placementDecision, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).Get(context.TODO(), StrategyName, metav1.GetOptions{})
+				Expect(err).To(BeNil())
+
+				placementDecision.Status.Decisions = []clusterv1alpha1.ClusterDecision{
+					{
+						ClusterName: ClusterName,
+					},
+				}
+				_, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
+					UpdateStatus(context.TODO(), placementDecision, metav1.UpdateOptions{})
+				return err
+			}, 30, 1).Should(BeNil())
 		})
 
 		dexClientName := fmt.Sprintf("%s-%s", ClusterName, MyIDPName)
@@ -213,7 +220,54 @@ var _ = Describe("Strategy", func() {
 				}
 				return nil
 			}, 30, 1).Should(BeNil())
-
 		})
+		By("Deleting the placementdecision", func() {
+			err := clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).Delete(context.TODO(), StrategyName, metav1.DeleteOptions{})
+			Expect(err).To(BeNil())
+		})
+		By(fmt.Sprintf("Checking client secret deletion %s", MyIDPName), func() {
+			Eventually(func() error {
+				clientSecret := &corev1.Secret{}
+				err := k8sClient.Get(context.TODO(), client.ObjectKey{Name: MyIDPName, Namespace: ClusterName}, clientSecret)
+				if err != nil {
+					if !errors.IsNotFound(err) {
+						return err
+					}
+					return nil
+				}
+				return fmt.Errorf("clientSecret %s still exist", MyIDPName)
+			}, 30, 1).Should(BeNil())
+		})
+		By(fmt.Sprintf("Checking DexClient deletion %s", dexClientName), func() {
+			Eventually(func() error {
+				dexClient := &dexv1alpha1.DexClient{}
+				err := k8sClient.Get(context.TODO(), client.ObjectKey{Name: dexClientName, Namespace: AuthRealmName}, dexClient)
+				if err != nil {
+					if !errors.IsNotFound(err) {
+						return err
+					}
+					return nil
+				}
+				return fmt.Errorf("DexClient %s still exist", dexClientName)
+
+			}, 30, 1).Should(BeNil())
+		})
+		By(fmt.Sprintf("Checking PlacementDecision deletion %s", dexClientName), func() {
+			Eventually(func() error {
+				_, err := clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).Get(context.TODO(), StrategyName, metav1.GetOptions{})
+				if err != nil {
+					if !errors.IsNotFound(err) {
+						return err
+					}
+					return nil
+				}
+				return fmt.Errorf("PlacementDecision %s still exist", StrategyName)
+
+			}, 30, 1).Should(BeNil())
+		})
+		// By("Deleting the AuthRealm", func() {
+		// 	err := identitatemClientSet.IdentityconfigV1alpha1().AuthRealms(AuthRealmNameSpace).Delete(context.TODO(), AuthRealmName, metav1.DeleteOptions{})
+		// 	Expect(err).To(BeNil())
+		// })
 	})
 })

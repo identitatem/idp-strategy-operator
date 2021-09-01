@@ -95,6 +95,10 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{}, err
 	}
 
+	if instance.DeletionTimestamp != nil {
+		return reconcile.Result{}, nil
+	}
+
 	r.Log.Info("Instance", "instance", instance)
 	r.Log.Info("Running Reconcile for Strategy.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace())
 

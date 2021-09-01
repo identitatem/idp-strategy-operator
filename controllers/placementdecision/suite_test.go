@@ -163,7 +163,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 	ClusterName := "my-cluster"
 	MyIDPName := "my-idp"
 
-	It("process a Strategy backplane CR", func() {
+	It("Process the creation of a placementDecision", func() {
 		By(fmt.Sprintf("creation of User namespace %s", AuthRealmNameSpace), func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -262,6 +262,15 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			strategy, err = clientSetStrategy.IdentityconfigV1alpha1().Strategies(AuthRealmNameSpace).Create(context.TODO(), strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 		})
+		By("creation cluster namespace", func() {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ClusterName,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), ns)
+			Expect(err).To(BeNil())
+		})
 		By("Create Placement Decision CR", func() {
 			placementDecision := &clusterv1alpha1.PlacementDecision{
 				ObjectMeta: metav1.ObjectMeta{
@@ -280,15 +289,6 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			}
 			_, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
 				UpdateStatus(context.TODO(), placementDecision, metav1.UpdateOptions{})
-			Expect(err).To(BeNil())
-		})
-		By("creation cluster namespace", func() {
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: ClusterName,
-				},
-			}
-			err := k8sClient.Create(context.TODO(), ns)
 			Expect(err).To(BeNil())
 		})
 		By("Calling reconcile", func() {
@@ -321,6 +321,9 @@ var _ = Describe("Process Strategy backplane: ", func() {
 		// 	Expect(err).To(BeNil())
 		// 	// Expect(len(mw.Spec.Workload.Manifests)).To(Equal(1))
 		// })
+	})
+	It("Process the deletion of a placementDecision", func() {
+
 	})
 })
 

@@ -12,12 +12,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -43,6 +45,15 @@ type PlacementDecisionReconciler struct {
 	Scheme             *runtime.Scheme
 }
 
+const (
+	placementDecisionFinalizer          string = "placelementdecision.identitatem.io/cleanup"
+	placementDecisionBackplaneFinalizer string = "placelementdecision.identitatem.io/cleanup-backplane"
+)
+
+const (
+	manifestworkName string = "oauth"
+)
+
 // +kubebuilder:rbac:groups="",resources={namespaces,secrets},verbs=get;list;watch;create;update;patch;delete
 
 //+kubebuilder:rbac:groups=identityconfig.identitatem.io,resources={authrealms,strategies},verbs=get;list;watch;create;update;patch;delete
@@ -52,6 +63,7 @@ type PlacementDecisionReconciler struct {
 // +kubebuilder:rbac:groups="apiextensions.k8s.io",resources={customresourcedefinitions},verbs=get;list;create;update;patch;delete
 
 //+kubebuilder:rbac:groups=cluster.open-cluster-management.io,resources={managedclusters,placements,placementdecisions},verbs=get;list;watch;create;update;patch;delete;watch
+//+kubebuilder:rbac:groups=work.open-cluster-management.io,resources={manifestworks},verbs=get;list;watch;create;update;patch;delete;watch
 //+kubebuilder:rbac:groups=config.openshift.io,resources={infrastructures},verbs=get;list;watch;create;update;patch;delete;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -86,8 +98,25 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	r.Log.Info("Instance", "instance", instance)
+	//if deletetimestamp then delete dex namespace
+	if instance.DeletionTimestamp != nil {
+		if err := r.deletePlacementDecision(instance); err != nil {
+			return reconcile.Result{}, err
+		}
+		controllerutil.RemoveFinalizer(instance, placementDecisionFinalizer)
+		if err := r.Client.Update(context.TODO(), instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		return reconcile.Result{}, nil
+	}
+
 	r.Log.Info("Running Reconcile for PlacementDecision.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace())
+
+	//Add finalizer
+	controllerutil.AddFinalizer(instance, placementDecisionFinalizer)
+	if err := r.Client.Update(context.TODO(), instance); err != nil {
+		return reconcile.Result{}, err
+	}
 
 	//Search the placement corresponding to the placementDecision
 	placement := &clusterv1alpha1.Placement{}
@@ -106,8 +135,18 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
+	//Add finalizer to the authrealm, it will be removed once the ns is deleted
+	if err := r.AddPlacementDecisionFinalizer(strategy, strategy); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	authrealm, err := helpers.GetAuthrealmFromStrategy(r.Client, strategy)
 	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	//Add finalizer to the authrealm, it will be removed once the ns is deleted
+	if err := r.AddPlacementDecisionFinalizer(strategy, authrealm); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -131,6 +170,93 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *PlacementDecisionReconciler) AddPlacementDecisionFinalizer(strategy *identitatemv1alpha1.Strategy, obj client.Object) error {
+	switch strategy.Spec.Type {
+	case identitatemv1alpha1.BackplaneStrategyType:
+		controllerutil.AddFinalizer(strategy, placementDecisionBackplaneFinalizer)
+		// case identitatemv1alpha1.GrcStrategyType:
+		// controllerutil.AddFinalizer(instance, placementDecisionGRCFinalizer)
+	default:
+		return fmt.Errorf("strategy type %s not supported", strategy.Spec.Type)
+	}
+
+	return r.Client.Update(context.TODO(), obj)
+
+}
+
+func (r *PlacementDecisionReconciler) RemovePlacementDecisionFinalizer(strategy *identitatemv1alpha1.Strategy, obj client.Object) error {
+	switch strategy.Spec.Type {
+	case identitatemv1alpha1.BackplaneStrategyType:
+		controllerutil.RemoveFinalizer(strategy, placementDecisionBackplaneFinalizer)
+		// case identitatemv1alpha1.GrcStrategyType:
+		// controllerutil.RemoveFinalizer(instance, placementDecisionGRCFinalizer)
+	default:
+		return fmt.Errorf("strategy type %s not supported", strategy.Spec.Type)
+	}
+
+	return r.Client.Update(context.TODO(), obj)
+
+}
+
+func (r *PlacementDecisionReconciler) deletePlacementDecision(placementDecision *clusterv1alpha1.PlacementDecision) error {
+	strategy, err := GetStrategyFromPlacementDecision(r.Client, placementDecision.Name, placementDecision.Namespace)
+	if err != nil {
+		r.Log.Error(err, "Error while getting the strategy")
+		return err
+	}
+
+	authrealm, err := helpers.GetAuthrealmFromStrategy(r.Client, strategy)
+	if err != nil {
+		return err
+	}
+
+	for _, decision := range placementDecision.Status.Decisions {
+		for _, idp := range authrealm.Spec.IdentityProviders {
+			//Delete DexClient
+			r.Log.Info("Delete dexclient", "name", fmt.Sprintf("%s-%s", decision.ClusterName, idp.Name), "namespace", authrealm.Name)
+			dexClient := &dexoperatorv1alpha1.DexClient{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-%s", decision.ClusterName, idp.Name),
+					Namespace: authrealm.Name,
+				},
+			}
+			if err := r.Delete(context.TODO(), dexClient); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+			//Delete ClientSecret
+			r.Log.Info("Delete clientSecret", "name", idp.Name, "namespace", decision.ClusterName)
+			clientSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      idp.Name,
+					Namespace: decision.ClusterName,
+				},
+			}
+			if err := r.Delete(context.TODO(), clientSecret); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+			//Delete Manifestwork
+			r.Log.Info("Delete manifestwork", "name", manifestworkName, "namespace", decision.ClusterName)
+			manifestwork := &workv1.ManifestWork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      manifestworkName,
+					Namespace: decision.ClusterName,
+				},
+			}
+			if err := r.Delete(context.TODO(), manifestwork); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+	//All resources are cleaned, finalizers on authrealm and strategy can be removed
+	if err := r.RemovePlacementDecisionFinalizer(strategy, strategy); err != nil {
+		return err
+	}
+	if err := r.RemovePlacementDecisionFinalizer(strategy, authrealm); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
