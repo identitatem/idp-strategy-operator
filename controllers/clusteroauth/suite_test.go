@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,7 +52,7 @@ func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
+		"ClusterOAuth Controller Suite",
 		[]Reporter{printer.NewlineReporter{}})
 }
 
@@ -165,7 +166,6 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       "Secret",
 				},
-
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      MyIDPName,
 					Namespace: ClusterName,
@@ -173,6 +173,14 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			}
 			err := k8sClient.Create(context.TODO(), secret)
 			Expect(err).To(BeNil())
+
+			//			Expect(secret.TypeMeta.Kind).To(Not(BeEmpty()))
+			//			Expect(secret.TypeMeta.APIVersion).To(Not(BeEmpty()))
+
+			secretAfter := &corev1.Secret{}
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: MyIDPName, Namespace: ClusterName}, secretAfter)
+			Expect(err).To(BeNil())
+
 		})
 
 		By(fmt.Sprintf("creation of ClusterOAuth for mangaed cluster %s", ClusterName), func() {
@@ -181,13 +189,17 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 					APIVersion: identitatemv1alpha1.SchemeGroupVersion.String(),
 					Kind:       "ClusterOAuth",
 				},
-
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      PlacementStrategyName,
 					Namespace: ClusterName,
 				},
 				Spec: identitatemv1alpha1.ClusterOAuthSpec{
 					OAuth: &openshiftconfigv1.OAuth{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: openshiftconfigv1.SchemeGroupVersion.String(),
+							Kind:       "OAuth",
+						},
+
 						Spec: openshiftconfigv1.OAuthSpec{
 							IdentityProviders: []openshiftconfigv1.IdentityProvider{
 								{
@@ -225,9 +237,10 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 		By("Checking manifestwork", func() {
-			var mw *workv1.ManifestWork
-			//mw, err := client.Get(context.TODO(), types.NamespacedName{Name: "idp-backplane", Namespace: ClusterName}, mw)
-			mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp-backplane", metav1.GetOptions{})
+			mw := &workv1.ManifestWork{}
+			err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: "idp-backplane", Namespace: ClusterName}, mw)
+			//var mw *workv1.ManifestWork
+			//mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp-backplane", metav1.GetOptions{})
 			Expect(err).To(BeNil())
 			Expect(mw.Name).To(Equal("idp-backplane"))
 			Expect(mw.Namespace).To(Equal(ClusterName))

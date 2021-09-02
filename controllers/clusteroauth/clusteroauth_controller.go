@@ -4,6 +4,7 @@ package clusteroauth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	//"fmt"
@@ -123,7 +124,21 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Get a list of all clusterOAuth
 	clusterOAuths := &identitatemv1alpha1.ClusterOAuthList{}
-	singleOAuth := &openshiftconfigv1.OAuth{}
+	//	singleOAuth := &openshiftconfigv1.OAuth{}
+	singleOAuth := &openshiftconfigv1.OAuth{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: openshiftconfigv1.SchemeGroupVersion.String(),
+			Kind:       "OAuth",
+		},
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "idp-backplane-oauth",
+			Namespace: instance.GetNamespace(),
+		},
+
+		Spec: openshiftconfigv1.OAuthSpec{},
+	}
+
 	if err := r.List(context.TODO(), clusterOAuths, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
@@ -145,7 +160,27 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 			if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: idp.Name}, secret); err == nil {
 				//add secret to manifest
-				manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+				//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+				//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: json.Marshal(secret)}}
+
+				//TODO TEMP PATCH
+				if len(secret.TypeMeta.Kind) == 0 {
+					secret.TypeMeta.Kind = "Secret"
+
+				}
+				if len(secret.TypeMeta.APIVersion) == 0 {
+					secret.TypeMeta.APIVersion = corev1.SchemeGroupVersion.String()
+
+				}
+
+				data, err := json.Marshal(secret)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+
+				manifest := manifestworkv1.Manifest{
+					RawExtension: runtime.RawExtension{Raw: data},
+				}
 
 				//add manifest to manifest work
 				manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
@@ -156,7 +191,23 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// create manifest for single OAuth
 
-	manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
+	//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
+	//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Raw: json.Marshal(singleOAuth)}}
+
+	// manifest, err := convertToManifest(singleOAuth)
+	// if err != nil {
+	// 	// Error reading the object - requeue the request.
+	// 	return reconcile.Result{}, err
+	// }
+
+	data, err := json.Marshal(singleOAuth)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	manifest := manifestworkv1.Manifest{
+		RawExtension: runtime.RawExtension{Raw: data},
+	}
 
 	//add OAuth manifest to manifest work
 	manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
