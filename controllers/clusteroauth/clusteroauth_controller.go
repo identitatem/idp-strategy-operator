@@ -160,8 +160,6 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 			if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: idp.Name}, secret); err == nil {
 				//add secret to manifest
-				//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
-				//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: json.Marshal(secret)}}
 
 				//TODO TEMP PATCH
 				if len(secret.TypeMeta.Kind) == 0 {
@@ -190,16 +188,6 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// create manifest for single OAuth
-
-	//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
-	//manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Raw: json.Marshal(singleOAuth)}}
-
-	// manifest, err := convertToManifest(singleOAuth)
-	// if err != nil {
-	// 	// Error reading the object - requeue the request.
-	// 	return reconcile.Result{}, err
-	// }
-
 	data, err := json.Marshal(singleOAuth)
 	if err != nil {
 		return reconcile.Result{}, err

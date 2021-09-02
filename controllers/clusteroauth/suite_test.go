@@ -242,10 +242,9 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			//var mw *workv1.ManifestWork
 			//mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp-backplane", metav1.GetOptions{})
 			Expect(err).To(BeNil())
-			Expect(mw.Name).To(Equal("idp-backplane"))
-			Expect(mw.Namespace).To(Equal(ClusterName))
 			// should find manifest for OAuth and manifest for Secret
 			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(2))
+			//manifest := mw.Spec.Workload.Manifests[0]
 		})
 	})
 })
