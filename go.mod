@@ -16,7 +16,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog/v2 v2.10.0
 	k8s.io/kubectl v0.21.0
-	open-cluster-management.io/api v0.0.0-20210823013037-9667ae902e4b
+	open-cluster-management.io/api v0.0.0-20210902053421-22c45bd6c7a1
 	open-cluster-management.io/clusteradm v0.1.0-alpha.5
 	sigs.k8s.io/controller-runtime v0.9.6
 )
