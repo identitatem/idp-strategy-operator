@@ -154,6 +154,13 @@ var _ = Describe("Strategy", func() {
 		})
 	})
 	It("process a PlacementDecision", func() {
+		var placementStrategy *clusterv1alpha1.Placement
+		By("Checking placement strategy", func() {
+			var err error
+			placementStrategy, err = clientSetCluster.ClusterV1alpha1().Placements(AuthRealmNameSpace).
+				Get(context.TODO(), PlacementStrategyName, metav1.GetOptions{})
+			Expect(err).To(BeNil())
+		})
 		By(fmt.Sprintf("creation of Dex namespace %s", AuthRealmName), func() {
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -172,6 +179,7 @@ var _ = Describe("Strategy", func() {
 					Namespace: AuthRealmNameSpace,
 				},
 			}
+			controllerutil.SetOwnerReference(placementStrategy, placementDecision, scheme.Scheme)
 			var err error
 			placementDecision, err = clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
 				Create(context.TODO(), placementDecision, metav1.CreateOptions{})

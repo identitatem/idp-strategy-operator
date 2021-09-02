@@ -159,7 +159,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 	CertificatesSecretRef := "my-certs"
 	StrategyName := AuthRealmName + "-backplane"
 	PlacementStrategyName := StrategyName
-	// PlacementName := AuthRealmName
+	PlacementName := AuthRealmName
 	ClusterName := "my-cluster"
 	MyIDPName := "my-idp"
 
@@ -183,10 +183,10 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 		var placement *clusterv1alpha1.Placement
-		By("Creating the placement strategy", func() {
+		By("Creating the placement", func() {
 			placement = &clusterv1alpha1.Placement{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      PlacementStrategyName,
+					Name:      PlacementName,
 					Namespace: AuthRealmNameSpace,
 				},
 				Spec: clusterv1alpha1.PlacementSpec{
@@ -253,7 +253,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 				Spec: identitatemv1alpha1.StrategySpec{
 					Type: identitatemv1alpha1.BackplaneStrategyType,
 					PlacementRef: corev1.LocalObjectReference{
-						Name: placement.Name,
+						Name: PlacementStrategyName,
 					},
 				},
 			}
@@ -261,6 +261,22 @@ var _ = Describe("Process Strategy backplane: ", func() {
 			var err error
 			strategy, err = clientSetStrategy.IdentityconfigV1alpha1().Strategies(AuthRealmNameSpace).Create(context.TODO(), strategy, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
+		})
+		var placementStrategy *clusterv1alpha1.Placement
+		By("Creating the placement strategy", func() {
+			placementStrategy = &clusterv1alpha1.Placement{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      PlacementStrategyName,
+					Namespace: AuthRealmNameSpace,
+				},
+				Spec: placement.Spec,
+			}
+			controllerutil.SetOwnerReference(strategy, placementStrategy, scheme.Scheme)
+			var err error
+			placementStrategy, err = clientSetCluster.ClusterV1alpha1().Placements(AuthRealmNameSpace).
+				Create(context.TODO(), placementStrategy, metav1.CreateOptions{})
+			Expect(err).To(BeNil())
+
 		})
 		By("creation cluster namespace", func() {
 			ns := &corev1.Namespace{
@@ -278,6 +294,7 @@ var _ = Describe("Process Strategy backplane: ", func() {
 					Namespace: AuthRealmNameSpace,
 				},
 			}
+			controllerutil.SetOwnerReference(placementStrategy, placementDecision, scheme.Scheme)
 			placementDecision, err := clientSetCluster.ClusterV1alpha1().PlacementDecisions(AuthRealmNameSpace).
 				Create(context.TODO(), placementDecision, metav1.CreateOptions{})
 			Expect(err).To(BeNil())

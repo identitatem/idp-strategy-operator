@@ -129,7 +129,7 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	strategy, err := GetStrategyFromPlacementDecision(r.Client, instance.Name, instance.Namespace)
+	strategy, err := GetStrategyFromPlacementDecision(r.Client, instance)
 	if err != nil {
 		r.Log.Error(err, "Error while getting the strategy")
 		return reconcile.Result{}, err
@@ -201,7 +201,7 @@ func (r *PlacementDecisionReconciler) RemovePlacementDecisionFinalizer(strategy 
 }
 
 func (r *PlacementDecisionReconciler) deletePlacementDecision(placementDecision *clusterv1alpha1.PlacementDecision) error {
-	strategy, err := GetStrategyFromPlacementDecision(r.Client, placementDecision.Name, placementDecision.Namespace)
+	strategy, err := GetStrategyFromPlacementDecision(r.Client, placementDecision)
 	if err != nil {
 		r.Log.Error(err, "Error while getting the strategy")
 		return err
