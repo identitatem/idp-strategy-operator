@@ -76,6 +76,9 @@ var _ = BeforeSuite(func() {
 	err = identitatemv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = corev1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = clusterv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -155,8 +158,14 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 
+		var secret *corev1.Secret
 		By(fmt.Sprintf("creation of IDP secret in cluster namespace %s", ClusterName), func() {
-			secret := &corev1.Secret{
+			secret = &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      MyIDPName,
 					Namespace: ClusterName,
@@ -168,6 +177,11 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 
 		By(fmt.Sprintf("creation of ClusterOAuth for mangaed cluster %s", ClusterName), func() {
 			clusterOAuth := &identitatemv1alpha1.ClusterOAuth{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: identitatemv1alpha1.SchemeGroupVersion.String(),
+					Kind:       "ClusterOAuth",
+				},
+
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      PlacementStrategyName,
 					Namespace: ClusterName,
@@ -183,6 +197,9 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 										Type: openshiftconfigv1.IdentityProviderTypeGitHub,
 										GitHub: &openshiftconfigv1.GitHubIdentityProvider{
 											ClientID: "me",
+											ClientSecret: openshiftconfigv1.SecretNameReference{
+												Name: secret.Name,
+											},
 										},
 									},
 								},
@@ -202,7 +219,7 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 				Scheme: scheme.Scheme,
 			}
 			req := ctrl.Request{}
-			req.Name = ClusterName
+			req.Name = PlacementStrategyName
 			req.Namespace = ClusterName
 			_, err := r.Reconcile(context.TODO(), req)
 			Expect(err).To(BeNil())

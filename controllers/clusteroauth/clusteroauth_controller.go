@@ -22,7 +22,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
@@ -81,8 +80,8 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	_ = r.Log.WithValues("clusteroauth", req.NamespacedName)
 
 	// your logic here
-	// Fetch the Strategy instance
-	instance := &identitatemv1alpha1.Strategy{}
+	// Fetch the ClusterOAuth instance
+	instance := &identitatemv1alpha1.ClusterOAuth{}
 
 	if err := r.Client.Get(
 		context.TODO(),
@@ -100,9 +99,12 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	r.Log.Info("Instance", "instance", instance)
-	r.Log.Info("Running Reconcile for ClusterOAuth.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace(), " Type:", instance.Spec.Type)
+	r.Log.Info("Running Reconcile for ClusterOAuth.", "Name: ", instance.GetName(), " Namespace:", instance.GetNamespace())
 
 	//TODO   - I think this only applies to backplane so no need to check
+	//         If grc also uses this, we need to have a way of knowing what strategy type created
+	//         the CR so we can build ManifestWork properly for that strategy.  For example, only secrets in
+	//         GRC manifestwork
 	//switch instance.Spec.Type {
 	//case identitatemv1alpha1.BackplaneStrategyType:
 
@@ -119,39 +121,6 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		},
 	}
 
-	// // Get the secret   TODO Is this one secret per IDP?
-	// secret := &corev1.Secret{}
-	// if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: req.Name}, secret); err != nil {
-	// 	if errors.IsNotFound(err) {
-	// 		// Request object not found, could have been deleted after reconcile request.
-	// 		// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-	// 		// Return and don't requeue
-	// 		return reconcile.Result{}, nil
-	// 	}
-	// 	// Error reading the object - requeue the request.
-	// 	return reconcile.Result{}, err
-	// }
-
-	// //add secret to manifest
-	// manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
-
-	// //add manifest to manifest work
-	// manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
-
-	// // Get secrets
-	// secrets := &corev1.SecretList{}
-	// //TODO Secret must be filtered to a smaller subset!
-	// if err := r.List(context.TODO(), secrets, &client.ListOptions{Namespace: instance.GetNamespace()}); err != nil {
-	// 	return nil, err
-	// }
-	// for _, secret := range secrets.Items {
-	// 	//add secret to manifest
-	// 	manifest := workv1.Manifest{RawExtension: runtime.RawExtension{Object: &secret}}
-
-	// 	//add manifest to manifest work
-	// 	manifestwork.Spec.Workload.Manifests = append(manifestwork.Spec.Workload.Manifests, manifest)
-	// }
-
 	// Get a list of all clusterOAuth
 	clusterOAuths := &identitatemv1alpha1.ClusterOAuthList{}
 	singleOAuth := &openshiftconfigv1.OAuth{}
@@ -162,25 +131,31 @@ func (r *ClusterOAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	for _, clusterOAuth := range clusterOAuths.Items {
 		//build OAuth and add to manifest work
-		r.Log.Info("ClusterOAuth.", "Name: ", clusterOAuth.GetName(), " Namespace:", instance.GetNamespace())
+		r.Log.Info("ClusterOAuth.", "Name: ", clusterOAuth.GetName(), " Namespace:", instance.GetNamespace(), "IdentityProviders:", len(instance.Spec.OAuth.Spec.IdentityProviders))
 
-		//build oauth by appending first clusterOAuth entry into single OAuth
-		singleOAuth.Spec.IdentityProviders = append(singleOAuth.Spec.IdentityProviders, clusterOAuth.Spec.OAuth.Spec.IdentityProviders[0])
+		for j, idp := range instance.Spec.OAuth.Spec.IdentityProviders {
 
-		//Look for secret for Identity Provider and if found, add to manifest work
-		secret := &corev1.Secret{}
+			r.Log.Info("ClusterOAuth.", "IdentityProvider  ", j, " Name:", idp.Name)
 
-		if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: clusterOAuth.Spec.OAuth.Spec.IdentityProviders[0].Name}, secret); err == nil {
-			//add secret to manifest
-			manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+			//build oauth by appending first clusterOAuth entry into single OAuth
+			singleOAuth.Spec.IdentityProviders = append(singleOAuth.Spec.IdentityProviders, idp)
 
-			//add manifest to manifest work
-			manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
+			//Look for secret for Identity Provider and if found, add to manifest work
+			secret := &corev1.Secret{}
 
+			if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: req.Namespace, Name: idp.Name}, secret); err == nil {
+				//add secret to manifest
+				manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: secret}}
+
+				//add manifest to manifest work
+				manifestWork.Spec.Workload.Manifests = append(manifestWork.Spec.Workload.Manifests, manifest)
+
+			}
 		}
 	}
 
 	// create manifest for single OAuth
+
 	manifest := manifestworkv1.Manifest{RawExtension: runtime.RawExtension{Object: singleOAuth}}
 
 	//add OAuth manifest to manifest work
@@ -328,10 +303,10 @@ func CreateOrUpdateManifestWork(
 		}
 	} else {
 		if errors.IsNotFound(err) {
-			if err := controllerutil.SetControllerReference(owner, manifestwork, scheme); err != nil {
-				log.Error(err, "Unable to SetControllerReference")
-				return err
-			}
+			//if err := controllerutil.SetControllerReference(owner, manifestwork, scheme); err != nil {
+			//	log.Error(err, "Unable to SetControllerReference")
+			//	return err
+			//}
 			if err := client.Create(context.TODO(), manifestwork); err != nil {
 				log.Error(err, "Fail to create manifestwork")
 				return err
@@ -399,6 +374,10 @@ func (r *ClusterOAuthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	file := "crd/bases/identityconfig.identitatem.io_clusteroauths.yaml"
 	if _, err := applier.ApplyDirectly(readerIDPMgmtOperator, nil, false, "", file); err != nil {
+		return err
+	}
+
+	if err := corev1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
