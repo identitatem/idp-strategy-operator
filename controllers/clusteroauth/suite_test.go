@@ -273,7 +273,11 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 
 		var secret3 *corev1.Secret
 		By(fmt.Sprintf("creation of IDP secret 3 in cluster namespace %s", ClusterName), func() {
+<<<<<<< HEAD
 			secret3 = &corev1.Secret{
+=======
+			secret2 = &corev1.Secret{
+>>>>>>> 59132313e708025e6273dbdadbf822b4edc1e7ec
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       "Secret",
