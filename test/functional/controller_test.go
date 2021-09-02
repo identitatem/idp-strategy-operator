@@ -177,6 +177,9 @@ var _ = Describe("Strategy", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      StrategyName,
 					Namespace: AuthRealmNameSpace,
+					Labels: map[string]string{
+						clusterv1alpha1.PlacementLabel: placementStrategy.Name,
+					},
 				},
 			}
 			controllerutil.SetOwnerReference(placementStrategy, placementDecision, scheme.Scheme)

@@ -292,6 +292,9 @@ var _ = Describe("Process Strategy backplane: ", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      PlacementStrategyName,
 					Namespace: AuthRealmNameSpace,
+					Labels: map[string]string{
+						clusterv1alpha1.PlacementLabel: placementStrategy.Name,
+					},
 				},
 			}
 			controllerutil.SetOwnerReference(placementStrategy, placementDecision, scheme.Scheme)

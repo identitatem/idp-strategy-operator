@@ -88,7 +88,7 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 				//Create dexClient
 				dexClientExists := true
 				dexClient := &identitatemdexv1alpha1.DexClient{}
-				if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterName, Namespace: authrealm.Name}, dexClient); err != nil {
+				if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: fmt.Sprintf("%s-%s", clusterName, idp.Name), Namespace: authrealm.Name}, dexClient); err != nil {
 					if !errors.IsNotFound(err) {
 						return err
 					}
