@@ -128,7 +128,7 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	placement := &clusterv1alpha1.Placement{}
 	err = r.Get(context.TODO(),
 		client.ObjectKey{
-			Name:      instance.GetLabels()[placementLabel],
+			Name:      instance.GetLabels()[clusterv1alpha1.PlacementLabel],
 			Namespace: instance.GetNamespace(),
 		}, placement)
 	if err != nil {
@@ -256,8 +256,8 @@ func (r *PlacementDecisionReconciler) deletePlacementDecision(placementDecision 
 	}
 	placementDecisions := &clusterv1alpha1.PlacementDecisionList{}
 	if err := r.Client.List(context.TODO(), placementDecisions, client.MatchingLabels{
-		placementLabel: placementDecision.GetLabels()[placementLabel],
-	}); err != nil {
+		clusterv1alpha1.PlacementLabel: placementDecision.GetLabels()[clusterv1alpha1.PlacementLabel],
+	}, client.InNamespace(placementDecision.Namespace)); err != nil {
 		return err
 	}
 
@@ -267,7 +267,7 @@ func (r *PlacementDecisionReconciler) deletePlacementDecision(placementDecision 
 		placement := &clusterv1alpha1.Placement{}
 		err := r.Get(context.TODO(),
 			client.ObjectKey{
-				Name:      placementDecision.GetLabels()[placementLabel],
+				Name:      placementDecision.GetLabels()[clusterv1alpha1.PlacementLabel],
 				Namespace: placementDecision.GetNamespace(),
 			}, placement)
 		if err != nil {

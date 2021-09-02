@@ -23,10 +23,6 @@ import (
 	"github.com/identitatem/idp-strategy-operator/pkg/helpers"
 )
 
-const (
-	placementLabel string = "cluster.open-cluster-management.io/placement"
-)
-
 func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alpha1.AuthRealm, placementDecision *clusterv1alpha1.PlacementDecision) error {
 
 	dexClients := &identitatemdexv1alpha1.DexClientList{}
@@ -36,8 +32,8 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 
 	placementDecisions := &clusterv1alpha1.PlacementDecisionList{}
 	if err := r.Client.List(context.TODO(), placementDecisions, client.MatchingLabels{
-		placementLabel: placementDecision.GetLabels()[placementLabel],
-	}); err != nil {
+		clusterv1alpha1.PlacementLabel: placementDecision.GetLabels()[clusterv1alpha1.PlacementLabel],
+	}, client.InNamespace(placementDecision.Namespace)); err != nil {
 		return err
 	}
 
@@ -143,10 +139,10 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 }
 
 func GetStrategyFromPlacementDecision(c client.Client, placementDecision *clusterv1alpha1.PlacementDecision) (*identitatemv1alpha1.Strategy, error) {
-	if placementName, ok := placementDecision.GetLabels()[placementLabel]; ok {
+	if placementName, ok := placementDecision.GetLabels()[clusterv1alpha1.PlacementLabel]; ok {
 		return GetStrategyFromPlacement(c, placementName, placementDecision.Namespace)
 	}
-	return nil, fmt.Errorf("placementDecision %s has not label %s", placementDecision.Name, placementLabel)
+	return nil, fmt.Errorf("placementDecision %s has no label %s", placementDecision.Name, clusterv1alpha1.PlacementLabel)
 }
 
 func GetStrategyFromPlacement(c client.Client, placementName, placementNamespace string) (*identitatemv1alpha1.Strategy, error) {

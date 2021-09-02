@@ -1642,8 +1642,8 @@ k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9/go.mod h1:jPW/WVKK9YHAvNhRxK0md/
 k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471 h1:DnzUXII7sVg1FJ/4JX6YDRJfLNAC7idRatPwe07suiI=
 k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
 open-cluster-management.io/api v0.0.0-20210519100835-bb9d4652f920/go.mod h1:8Im7usNXWSCztNnujKnh0rC5DpnEDhXIyVI2rJrpgLo=
-open-cluster-management.io/api v0.0.0-20210823013037-9667ae902e4b h1:B2vuGyZdIULcE704+81Q4Kisd2ANzlv/+d38GVdcw6w=
-open-cluster-management.io/api v0.0.0-20210823013037-9667ae902e4b/go.mod h1:9qiA5h/8kvPQnJEOlAPHVjRO9a1jCmDhGzvgMBvXEaE=
+open-cluster-management.io/api v0.0.0-20210902053421-22c45bd6c7a1 h1:0+iIEw3BTEqrp0hxh7TMHHaPa+bwXLLVJ7466uypfJU=
+open-cluster-management.io/api v0.0.0-20210902053421-22c45bd6c7a1/go.mod h1:9qiA5h/8kvPQnJEOlAPHVjRO9a1jCmDhGzvgMBvXEaE=
 open-cluster-management.io/clusteradm v0.1.0-alpha.5 h1:X6YY3fvT/hXFclgb/SDVkqah327iL9Wb/U4HKBXlTko=
 open-cluster-management.io/clusteradm v0.1.0-alpha.5/go.mod h1:mTlXVyeEwfYDacEzZ5RoZNvl+ZLRRlYTpY7C0Hik2Ro=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
