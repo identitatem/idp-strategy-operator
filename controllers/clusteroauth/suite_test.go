@@ -273,7 +273,7 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 
 		var secret3 *corev1.Secret
 		By(fmt.Sprintf("creation of IDP secret 3 in cluster namespace %s", ClusterName), func() {
-			secret2 = &corev1.Secret{
+			secret3 = &corev1.Secret{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       "Secret",
@@ -361,8 +361,10 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			//var mw *workv1.ManifestWork
 			//mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp-backplane", metav1.GetOptions{})
 			Expect(err).To(BeNil())
-			// should find manifest for OAuth and manifest for Secret
-			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(3))
+			// should find manifest for OAuth 1 and manifest for Secret 1
+			// AND
+			// should find manifest for OAuth 2 and manifest for Secret 2 and Secret 3
+			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(5))
 		})
 
 	})
