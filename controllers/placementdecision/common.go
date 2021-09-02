@@ -129,19 +129,10 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 }
 
 func GetStrategyFromPlacementDecision(c client.Client, placementDecision *clusterv1alpha1.PlacementDecision) (*identitatemv1alpha1.Strategy, error) {
-	//Placement decisions has the same name then PlacementDecision
-	//and so we can search the placement from placement decsion
-	var placementName string
-	for _, or := range placementDecision.OwnerReferences {
-		if or.Kind == "Placement" {
-			placementName = or.Name
-			break
-		}
+	if placementName, ok := placementDecision.GetLabels()["cluster.open-cluster-management.io/placement"]; ok {
+		return GetStrategyFromPlacement(c, placementName, placementDecision.Namespace)
 	}
-	if len(placementName) == 0 {
-		return nil, fmt.Errorf("OwnerRef to placement not found in placementDecision %s", placementDecision.Name)
-	}
-	return GetStrategyFromPlacement(c, placementName, placementDecision.Namespace)
+	return nil, fmt.Errorf("placementDecision %s has not label cluster.open-cluster-management.io/placement", placementDecision.Name)
 }
 
 func GetStrategyFromPlacement(c client.Client, placementName, placementNamespace string) (*identitatemv1alpha1.Strategy, error) {
