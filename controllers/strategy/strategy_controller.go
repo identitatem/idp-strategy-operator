@@ -77,7 +77,7 @@ func (r *StrategyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	_ = r.Log.WithValues("strategy", req.NamespacedName)
 
 	// your logic here
-	// Fetch the ManagedCluster instance
+	// Fetch the Strategy instance
 	instance := &identitatemv1alpha1.Strategy{}
 
 	if err := r.Client.Get(
