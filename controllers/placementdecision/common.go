@@ -23,15 +23,27 @@ import (
 	"github.com/identitatem/idp-strategy-operator/pkg/helpers"
 )
 
+const (
+	placementLabel string = "cluster.open-cluster-management.io/placement"
+)
+
 func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alpha1.AuthRealm, placementDecision *clusterv1alpha1.PlacementDecision) error {
 
 	dexClients := &identitatemdexv1alpha1.DexClientList{}
 	if err := r.Client.List(context.TODO(), dexClients, &client.ListOptions{Namespace: authrealm.Name}); err != nil {
 		return err
 	}
+
+	placementDecisions := &clusterv1alpha1.PlacementDecisionList{}
+	if err := r.Client.List(context.TODO(), placementDecisions, client.MatchingLabels{
+		placementLabel: placementDecision.GetLabels()[placementLabel],
+	}); err != nil {
+		return err
+	}
+
 	for i, dexClient := range dexClients.Items {
 		for _, idp := range authrealm.Spec.IdentityProviders {
-			if !inPlacementDecision(dexClient.GetLabels()["cluster"], placementDecision) &&
+			if !inPlacementDecision(dexClient.GetLabels()["cluster"], placementDecisions) &&
 				dexClient.GetLabels()["idp"] == idp.Name {
 				//Delete the dexClient
 				if err := r.Client.Delete(context.TODO(), &dexClients.Items[i]); err != nil {
@@ -53,75 +65,77 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 			}
 		}
 	}
-	for _, decision := range placementDecision.Status.Decisions {
-		for _, idp := range authrealm.Spec.IdentityProviders {
-			//Create Secret
-			clusterName := decision.ClusterName
-			clientSecret := &corev1.Secret{}
-			if err := r.Get(context.TODO(), client.ObjectKey{Name: idp.Name, Namespace: clusterName}, clientSecret); err != nil {
-				if !errors.IsNotFound(err) {
-					return err
-				}
-				clientSecret = &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      idp.Name,
-						Namespace: clusterName,
-					},
-					Data: map[string][]byte{
-						"client-id":     []byte(clusterName),
-						"client-secret": []byte(helpers.RandStringRunes(32)),
-					},
-				}
-				if err := r.Create(context.TODO(), clientSecret); err != nil {
-					return err
-				}
-			}
-			//Create dexClient
-			dexClientExists := true
-			dexClient := &identitatemdexv1alpha1.DexClient{}
-			if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterName, Namespace: authrealm.Name}, dexClient); err != nil {
-				if !errors.IsNotFound(err) {
-					return err
-				}
-				dexClientExists = false
-				dexClient = &identitatemdexv1alpha1.DexClient{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", clusterName, idp.Name),
-						Namespace: authrealm.Name,
-						Labels: map[string]string{
-							"cluster": clusterName,
-							"idp":     idp.Name,
+	for _, placementDecision := range placementDecisions.Items {
+		for _, decision := range placementDecision.Status.Decisions {
+			for _, idp := range authrealm.Spec.IdentityProviders {
+				//Create Secret
+				clusterName := decision.ClusterName
+				clientSecret := &corev1.Secret{}
+				if err := r.Get(context.TODO(), client.ObjectKey{Name: idp.Name, Namespace: clusterName}, clientSecret); err != nil {
+					if !errors.IsNotFound(err) {
+						return err
+					}
+					clientSecret = &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      idp.Name,
+							Namespace: clusterName,
 						},
-					},
+						Data: map[string][]byte{
+							"client-id":     []byte(clusterName),
+							"client-secret": []byte(helpers.RandStringRunes(32)),
+						},
+					}
+					if err := r.Create(context.TODO(), clientSecret); err != nil {
+						return err
+					}
 				}
-			}
+				//Create dexClient
+				dexClientExists := true
+				dexClient := &identitatemdexv1alpha1.DexClient{}
+				if err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterName, Namespace: authrealm.Name}, dexClient); err != nil {
+					if !errors.IsNotFound(err) {
+						return err
+					}
+					dexClientExists = false
+					dexClient = &identitatemdexv1alpha1.DexClient{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("%s-%s", clusterName, idp.Name),
+							Namespace: authrealm.Name,
+							Labels: map[string]string{
+								"cluster": clusterName,
+								"idp":     idp.Name,
+							},
+						},
+					}
+				}
 
-			dexClient.Spec.ClientID = string(clientSecret.Data["client-id"])
-			dexClient.Spec.ClientSecret = string(clientSecret.Data["client-secret"])
+				dexClient.Spec.ClientID = string(clientSecret.Data["client-id"])
+				dexClient.Spec.ClientSecret = string(clientSecret.Data["client-secret"])
 
-			apiServerURL, err := helpers.GetKubeAPIServerAddress(r.Client)
-			if err != nil {
-				return err
-			}
-			u, err := url.Parse(apiServerURL)
-			if err != nil {
-				return err
-			}
+				apiServerURL, err := helpers.GetKubeAPIServerAddress(r.Client)
+				if err != nil {
+					return err
+				}
+				u, err := url.Parse(apiServerURL)
+				if err != nil {
+					return err
+				}
 
-			host, _, err := net.SplitHostPort(u.Host)
-			if err != nil {
-				return err
-			}
+				host, _, err := net.SplitHostPort(u.Host)
+				if err != nil {
+					return err
+				}
 
-			host = strings.Replace(host, "api", "apps", 1)
+				host = strings.Replace(host, "api", "apps", 1)
 
-			redirectURI := fmt.Sprintf("%s://%s/oauth2callback/idpserver", u.Scheme, host)
-			dexClient.Spec.RedirectURIs = []string{redirectURI}
-			switch dexClientExists {
-			case true:
-				return r.Client.Update(context.TODO(), dexClient)
-			case false:
-				return r.Client.Create(context.Background(), dexClient)
+				redirectURI := fmt.Sprintf("%s://%s/oauth2callback/idpserver", u.Scheme, host)
+				dexClient.Spec.RedirectURIs = []string{redirectURI}
+				switch dexClientExists {
+				case true:
+					return r.Client.Update(context.TODO(), dexClient)
+				case false:
+					return r.Client.Create(context.Background(), dexClient)
+				}
 			}
 		}
 	}
@@ -129,10 +143,10 @@ func (r *PlacementDecisionReconciler) syncDexClients(authrealm *identitatemv1alp
 }
 
 func GetStrategyFromPlacementDecision(c client.Client, placementDecision *clusterv1alpha1.PlacementDecision) (*identitatemv1alpha1.Strategy, error) {
-	if placementName, ok := placementDecision.GetLabels()["cluster.open-cluster-management.io/placement"]; ok {
+	if placementName, ok := placementDecision.GetLabels()[placementLabel]; ok {
 		return GetStrategyFromPlacement(c, placementName, placementDecision.Namespace)
 	}
-	return nil, fmt.Errorf("placementDecision %s has not label cluster.open-cluster-management.io/placement", placementDecision.Name)
+	return nil, fmt.Errorf("placementDecision %s has not label %s", placementDecision.Name, placementLabel)
 }
 
 func GetStrategyFromPlacement(c client.Client, placementName, placementNamespace string) (*identitatemv1alpha1.Strategy, error) {
@@ -148,10 +162,12 @@ func GetStrategyFromPlacement(c client.Client, placementName, placementNamespace
 	return nil, errors.NewNotFound(identitatemv1alpha1.Resource("strategies"), placementName)
 }
 
-func inPlacementDecision(clusterName string, placementDecision *clusterv1alpha1.PlacementDecision) bool {
-	for _, decision := range placementDecision.Status.Decisions {
-		if decision.ClusterName == clusterName {
-			return true
+func inPlacementDecision(clusterName string, placementDecisions *clusterv1alpha1.PlacementDecisionList) bool {
+	for _, placementDecision := range placementDecisions.Items {
+		for _, decision := range placementDecision.Status.Decisions {
+			if decision.ClusterName == clusterName {
+				return true
+			}
 		}
 	}
 	return false

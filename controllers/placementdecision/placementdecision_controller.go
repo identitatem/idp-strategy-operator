@@ -118,24 +118,29 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	//Search the placement corresponding to the placementDecision
-	placement := &clusterv1alpha1.Placement{}
-	err := r.Get(context.TODO(),
-		client.ObjectKey{
-			Name:      instance.GetName(),
-			Namespace: instance.GetNamespace(),
-		}, placement)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	strategy, err := GetStrategyFromPlacementDecision(r.Client, instance)
 	if err != nil {
 		r.Log.Error(err, "Error while getting the strategy")
 		return reconcile.Result{}, err
 	}
 
-	//Add finalizer to the authrealm, it will be removed once the ns is deleted
+	//Search the placement corresponding to the placementDecision
+	placement := &clusterv1alpha1.Placement{}
+	err = r.Get(context.TODO(),
+		client.ObjectKey{
+			Name:      instance.GetLabels()[placementLabel],
+			Namespace: instance.GetNamespace(),
+		}, placement)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	//Add finalizer to the placement, it will be removed once the ns is deleted
+	if err := r.AddPlacementDecisionFinalizer(strategy, placement); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	//Add finalizer to the strategy, it will be removed once the ns is deleted
 	if err := r.AddPlacementDecisionFinalizer(strategy, strategy); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -158,7 +163,7 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{Requeue: true, RequeueAfter: 10 * time.Second}, err
 		}
 
-		if err := r.backplaneStrategy(authrealm, placement, instance); err != nil {
+		if err := r.backplaneStrategy(authrealm, instance); err != nil {
 			return reconcile.Result{}, err
 		}
 	// case identitatemv1alpha1.GrcStrategyType:
@@ -175,9 +180,9 @@ func (r *PlacementDecisionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 func (r *PlacementDecisionReconciler) AddPlacementDecisionFinalizer(strategy *identitatemv1alpha1.Strategy, obj client.Object) error {
 	switch strategy.Spec.Type {
 	case identitatemv1alpha1.BackplaneStrategyType:
-		controllerutil.AddFinalizer(strategy, placementDecisionBackplaneFinalizer)
+		controllerutil.AddFinalizer(obj, placementDecisionBackplaneFinalizer)
 		// case identitatemv1alpha1.GrcStrategyType:
-		// controllerutil.AddFinalizer(instance, placementDecisionGRCFinalizer)
+		// controllerutil.AddFinalizer(obj, placementDecisionGRCFinalizer)
 	default:
 		return fmt.Errorf("strategy type %s not supported", strategy.Spec.Type)
 	}
@@ -189,9 +194,9 @@ func (r *PlacementDecisionReconciler) AddPlacementDecisionFinalizer(strategy *id
 func (r *PlacementDecisionReconciler) RemovePlacementDecisionFinalizer(strategy *identitatemv1alpha1.Strategy, obj client.Object) error {
 	switch strategy.Spec.Type {
 	case identitatemv1alpha1.BackplaneStrategyType:
-		controllerutil.RemoveFinalizer(strategy, placementDecisionBackplaneFinalizer)
+		controllerutil.RemoveFinalizer(obj, placementDecisionBackplaneFinalizer)
 		// case identitatemv1alpha1.GrcStrategyType:
-		// controllerutil.RemoveFinalizer(instance, placementDecisionGRCFinalizer)
+		// controllerutil.RemoveFinalizer(obj, placementDecisionGRCFinalizer)
 	default:
 		return fmt.Errorf("strategy type %s not supported", strategy.Spec.Type)
 	}
@@ -249,12 +254,36 @@ func (r *PlacementDecisionReconciler) deletePlacementDecision(placementDecision 
 			}
 		}
 	}
-	//All resources are cleaned, finalizers on authrealm and strategy can be removed
-	if err := r.RemovePlacementDecisionFinalizer(strategy, strategy); err != nil {
+	placementDecisions := &clusterv1alpha1.PlacementDecisionList{}
+	if err := r.Client.List(context.TODO(), placementDecisions, client.MatchingLabels{
+		placementLabel: placementDecision.GetLabels()[placementLabel],
+	}); err != nil {
 		return err
 	}
-	if err := r.RemovePlacementDecisionFinalizer(strategy, authrealm); err != nil {
-		return err
+
+	//Remove the finalizers when there is no other placementDecisions for that placement.
+	if len(placementDecisions.Items) == 1 {
+		//Search the placement corresponding to the placementDecision
+		placement := &clusterv1alpha1.Placement{}
+		err := r.Get(context.TODO(),
+			client.ObjectKey{
+				Name:      placementDecision.GetLabels()[placementLabel],
+				Namespace: placementDecision.GetNamespace(),
+			}, placement)
+		if err != nil {
+			return err
+		}
+
+		//All resources are cleaned, finalizers on authrealm and strategy can be removed
+		if err := r.RemovePlacementDecisionFinalizer(strategy, placement); err != nil {
+			return err
+		}
+		if err := r.RemovePlacementDecisionFinalizer(strategy, strategy); err != nil {
+			return err
+		}
+		if err := r.RemovePlacementDecisionFinalizer(strategy, authrealm); err != nil {
+			return err
+		}
 	}
 	return nil
 }

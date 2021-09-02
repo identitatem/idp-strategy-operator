@@ -16,7 +16,6 @@ const (
 //backplaneStrategy generates resources for the Backplane strategy
 func (r *PlacementDecisionReconciler) backplaneStrategy(
 	authrealm *identitatemv1alpha1.AuthRealm,
-	placement *clusterv1alpha1.Placement,
 	placementDecision *clusterv1alpha1.PlacementDecision) error {
 
 	if err := r.syncDexClients(authrealm, placementDecision); err != nil {
