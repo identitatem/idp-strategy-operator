@@ -140,13 +140,13 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 	AuthRealmName := "my-authrealm"
-	//AuthRealmNameSpace := "my-authrealmns"
-	//CertificatesSecretRef := "my-certs"
 	StrategyName := AuthRealmName + "-backplane"
-	PlacementStrategyName := StrategyName
-	// PlacementName := AuthRealmName
+	ClusterOAuthName1 := StrategyName + "-1"
+	ClusterOAuthName2 := StrategyName + "-2"
 	ClusterName := "my-cluster"
-	MyIDPName := "my-idp"
+	MyIDPName1 := "my-idp" + "-1"
+	MyIDPName2 := "my-idp" + "-2"
+	MyIDPName3 := "my-idp" + "-3"
 
 	It("process a ClusterOAuth CR", func() {
 		By(fmt.Sprintf("creation of cluster namespace %s", ClusterName), func() {
@@ -159,26 +159,19 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			Expect(err).To(BeNil())
 		})
 
-		var secret *corev1.Secret
-		By(fmt.Sprintf("creation of IDP secret in cluster namespace %s", ClusterName), func() {
-			secret = &corev1.Secret{
+		var secret1 *corev1.Secret
+		By(fmt.Sprintf("creation of IDP secret 1 in cluster namespace %s", ClusterName), func() {
+			secret1 = &corev1.Secret{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       "Secret",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      MyIDPName,
+					Name:      MyIDPName1,
 					Namespace: ClusterName,
 				},
 			}
-			err := k8sClient.Create(context.TODO(), secret)
-			Expect(err).To(BeNil())
-
-			//			Expect(secret.TypeMeta.Kind).To(Not(BeEmpty()))
-			//			Expect(secret.TypeMeta.APIVersion).To(Not(BeEmpty()))
-
-			secretAfter := &corev1.Secret{}
-			err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: MyIDPName, Namespace: ClusterName}, secretAfter)
+			err := k8sClient.Create(context.TODO(), secret1)
 			Expect(err).To(BeNil())
 
 		})
@@ -190,7 +183,7 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 					Kind:       "ClusterOAuth",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      PlacementStrategyName,
+					Name:      ClusterOAuthName1,
 					Namespace: ClusterName,
 				},
 				Spec: identitatemv1alpha1.ClusterOAuthSpec{
@@ -203,14 +196,14 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 						Spec: openshiftconfigv1.OAuthSpec{
 							IdentityProviders: []openshiftconfigv1.IdentityProvider{
 								{
-									Name:          MyIDPName,
+									Name:          MyIDPName1,
 									MappingMethod: openshiftconfigv1.MappingMethodClaim,
 									IdentityProviderConfig: openshiftconfigv1.IdentityProviderConfig{
 										Type: openshiftconfigv1.IdentityProviderTypeGitHub,
 										GitHub: &openshiftconfigv1.GitHubIdentityProvider{
 											ClientID: "me",
 											ClientSecret: openshiftconfigv1.SecretNameReference{
-												Name: secret.Name,
+												Name: secret1.Name,
 											},
 										},
 									},
@@ -231,11 +224,12 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 				Scheme: scheme.Scheme,
 			}
 			req := ctrl.Request{}
-			req.Name = PlacementStrategyName
+			req.Name = ClusterOAuthName1
 			req.Namespace = ClusterName
 			_, err := r.Reconcile(context.TODO(), req)
 			Expect(err).To(BeNil())
 		})
+
 		By("Checking manifestwork", func() {
 			mw := &workv1.ManifestWork{}
 			err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: "idp-backplane", Namespace: ClusterName}, mw)
@@ -246,6 +240,131 @@ var _ = Describe("Process clusterOAuth for Strategy backplane: ", func() {
 			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(2))
 			//manifest := mw.Spec.Workload.Manifests[0]
 		})
+
+		By("Calling reconcile 2nd time", func() {
+			r := &ClusterOAuthReconciler{
+				Client: k8sClient,
+				Log:    logf.Log,
+				Scheme: scheme.Scheme,
+			}
+			req := ctrl.Request{}
+			req.Name = ClusterOAuthName1
+			req.Namespace = ClusterName
+			_, err := r.Reconcile(context.TODO(), req)
+			Expect(err).To(BeNil())
+		})
+
+		var secret2 *corev1.Secret
+		By(fmt.Sprintf("creation of IDP secret 2 in cluster namespace %s", ClusterName), func() {
+			secret2 = &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      MyIDPName2,
+					Namespace: ClusterName,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), secret2)
+			Expect(err).To(BeNil())
+
+		})
+
+		var secret3 *corev1.Secret
+		By(fmt.Sprintf("creation of IDP secret 3 in cluster namespace %s", ClusterName), func() {
+			secret2 = &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      MyIDPName3,
+					Namespace: ClusterName,
+				},
+			}
+			err := k8sClient.Create(context.TODO(), secret3)
+			Expect(err).To(BeNil())
+
+		})
+
+		By(fmt.Sprintf("creation of ClusterOAuth 2 for mangaed cluster %s", ClusterName), func() {
+			clusterOAuth := &identitatemv1alpha1.ClusterOAuth{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: identitatemv1alpha1.SchemeGroupVersion.String(),
+					Kind:       "ClusterOAuth",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ClusterOAuthName2,
+					Namespace: ClusterName,
+				},
+				Spec: identitatemv1alpha1.ClusterOAuthSpec{
+					OAuth: &openshiftconfigv1.OAuth{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: openshiftconfigv1.SchemeGroupVersion.String(),
+							Kind:       "OAuth",
+						},
+
+						Spec: openshiftconfigv1.OAuthSpec{
+							IdentityProviders: []openshiftconfigv1.IdentityProvider{
+								{
+									Name:          MyIDPName2,
+									MappingMethod: openshiftconfigv1.MappingMethodClaim,
+									IdentityProviderConfig: openshiftconfigv1.IdentityProviderConfig{
+										Type: openshiftconfigv1.IdentityProviderTypeGitHub,
+										GitHub: &openshiftconfigv1.GitHubIdentityProvider{
+											ClientID: "me2",
+											ClientSecret: openshiftconfigv1.SecretNameReference{
+												Name: secret2.Name,
+											},
+										},
+									},
+								},
+								{
+									Name:          MyIDPName3,
+									MappingMethod: openshiftconfigv1.MappingMethodClaim,
+									IdentityProviderConfig: openshiftconfigv1.IdentityProviderConfig{
+										Type: openshiftconfigv1.IdentityProviderTypeGitHub,
+										GitHub: &openshiftconfigv1.GitHubIdentityProvider{
+											ClientID: "me3",
+											ClientSecret: openshiftconfigv1.SecretNameReference{
+												Name: secret3.Name,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			err := k8sClient.Create(context.TODO(), clusterOAuth)
+			Expect(err).To(BeNil())
+		})
+
+		By("Calling reconcile", func() {
+			r := &ClusterOAuthReconciler{
+				Client: k8sClient,
+				Log:    logf.Log,
+				Scheme: scheme.Scheme,
+			}
+			req := ctrl.Request{}
+			req.Name = ClusterOAuthName2
+			req.Namespace = ClusterName
+			_, err := r.Reconcile(context.TODO(), req)
+			Expect(err).To(BeNil())
+		})
+
+		By("Checking manifestwork", func() {
+			mw := &workv1.ManifestWork{}
+			err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: "idp-backplane", Namespace: ClusterName}, mw)
+			//var mw *workv1.ManifestWork
+			//mw, err := clientSetWork.WorkV1().ManifestWorks(ClusterName).Get(context.TODO(), "idp-backplane", metav1.GetOptions{})
+			Expect(err).To(BeNil())
+			// should find manifest for OAuth and manifest for Secret
+			Expect(len(mw.Spec.Workload.Manifests)).To(Equal(3))
+		})
+
 	})
 })
 
